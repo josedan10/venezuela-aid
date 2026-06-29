@@ -79,6 +79,12 @@ export default function Home() {
   const [offlineSimulation, setOfflineSimulation] = useState(false);
   const [offlineCount, setOfflineCount] = useState(0);
 
+  // Profile modal
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+
   // Driver settings and nearby Needs
   const [driverRadius, setDriverRadius] = useState(15);
   const [driverGpsSharing, setDriverGpsSharing] = useState(true);
@@ -115,6 +121,31 @@ export default function Home() {
       }
     } catch (e) {
       console.error('Error refreshing profile:', e);
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileMessage('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ name: profileName }),
+      });
+      if (res.ok) {
+        await fetchProfile();
+        setProfileMessage('Perfil actualizado correctamente.');
+        setTimeout(() => { setShowProfileModal(false); setProfileMessage(''); }, 1500);
+      } else {
+        const d = await res.json();
+        setProfileMessage(d.message || 'Error al actualizar.');
+      }
+    } catch (err) {
+      setProfileMessage('Error de conexión.');
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -532,6 +563,10 @@ export default function Home() {
       fetchAvailableTeams();
     }
   }, [authToken]);
+
+  useEffect(() => {
+    if (showProfileModal && currentUser) setProfileName(currentUser.name);
+  }, [showProfileModal, currentUser]);
 
   // Fetch details on activeTab Change
   useEffect(() => {
@@ -1274,9 +1309,20 @@ export default function Home() {
               {firebaseUser ? (
                 <div className="header-session-info">
                   {currentUser ? (
-                    <span>Conectado: <strong>{currentUser.name}</strong></span>
+                    <button
+                      className="profile-btn"
+                      onClick={() => setShowProfileModal(true)}
+                      title="Configurar Perfil"
+                    >
+                      {currentUser.selfieUrl ? (
+                        <img src={currentUser.selfieUrl} className="profile-avatar-img" alt="avatar" />
+                      ) : (
+                        <span className="profile-avatar-placeholder">👤</span>
+                      )}
+                      <span className="profile-name-label">{currentUser.name.split(' ')[0]}</span>
+                    </button>
                   ) : (
-                    <span>Cargando perfil...</span>
+                    <span>Cargando...</span>
                   )}
                   <button onClick={handleLogout} className="logout-btn">Salir</button>
                 </div>
@@ -1411,7 +1457,7 @@ export default function Home() {
                           onClick={() => setActiveTab('equipos')}
                           className={activeTab === 'equipos' ? 'tab-btn active' : 'tab-btn'}
                         >
-                          Equipos
+                          Equipos {myTeam && !myTeam.inTeam && <span className="tab-dot">●</span>}
                         </button>
                       )}
                       {!currentUser && (
@@ -2074,6 +2120,74 @@ export default function Home() {
                     <button type="button" className="reject-btn" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>Cancelar</button>
                   </div>
                 </form>
+              </div>
+            )}
+
+            {/* PROFILE MODAL */}
+            {showProfileModal && currentUser && (
+              <div className="modal-backdrop" onClick={() => setShowProfileModal(false)}>
+                <div className="profile-modal glass-card" onClick={e => e.stopPropagation()}>
+                  <div className="modal-header">
+                    <h3>⚙️ Mi Perfil</h3>
+                    <button className="close-modal-btn" onClick={() => setShowProfileModal(false)}>✕</button>
+                  </div>
+
+                  <div className="profile-selfie-section">
+                    {currentUser.selfieUrl ? (
+                      <img src={currentUser.selfieUrl} className="profile-modal-avatar" alt="Mi selfie" />
+                    ) : (
+                      <div className="profile-modal-avatar-placeholder">👤</div>
+                    )}
+                    <div className="profile-modal-meta">
+                      <p className="profile-email">{currentUser.email}</p>
+                      <p className="profile-roles">{currentUser.roles.split(',').join(' · ')}</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveProfile} className="profile-edit-form">
+                    <div className="input-group">
+                      <label htmlFor="prof-name">Nombre Completo</label>
+                      <input
+                        id="prof-name"
+                        type="text"
+                        value={profileName}
+                        onChange={e => setProfileName(e.target.value)}
+                        placeholder="Tu nombre"
+                        required
+                      />
+                    </div>
+
+                    {profileMessage && (
+                      <div className={`profile-msg ${profileMessage.includes('Error') ? 'error' : 'success'}`}>
+                        {profileMessage}
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={profileSaving} className="confirm-btn">
+                      {profileSaving ? 'Guardando...' : 'Guardar Cambios'}
+                    </button>
+                  </form>
+
+                  <div className="profile-modal-section">
+                    <h4>👥 Mi Equipo</h4>
+                    {myTeam?.inTeam ? (
+                      <div className="profile-team-info">
+                        <span className="profile-team-name">{myTeam.team.name}</span>
+                        <span className="profile-team-members">{myTeam.team.members.length} miembro(s)</span>
+                        <button onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
+                          Ver Equipo →
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="profile-no-team">
+                        <p>No perteneces a ningún equipo todavía.</p>
+                        <button onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
+                          Crear o Unirme a un Equipo →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
             
@@ -3249,6 +3363,195 @@ export default function Home() {
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Profile button in header */
+        .profile-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(255, 255, 255, 0.07);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 30px;
+          padding: 5px 12px 5px 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: #f8fafc;
+        }
+        .profile-btn:hover {
+          background: rgba(255, 255, 255, 0.14);
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+        .profile-avatar-img {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid #3b82f6;
+        }
+        .profile-avatar-placeholder {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(59, 130, 246, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          border: 2px solid #3b82f6;
+        }
+        .profile-name-label {
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        /* Profile modal */
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.6);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          animation: fadeIn 0.15s ease-out;
+        }
+        .profile-modal {
+          width: 100%;
+          max-width: 420px;
+          border-radius: 20px;
+          padding: 24px;
+          background: rgba(15, 23, 42, 0.97);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .modal-header h3 {
+          font-size: 16px;
+          font-weight: 700;
+          color: #f8fafc;
+          margin: 0;
+        }
+        .close-modal-btn {
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #94a3b8;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          cursor: pointer;
+          font-size: 13px;
+          transition: all 0.2s;
+        }
+        .close-modal-btn:hover { background: rgba(255,255,255,0.12); color: #f8fafc; }
+        .profile-selfie-section {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .profile-modal-avatar {
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 3px solid #3b82f6;
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          flex-shrink: 0;
+        }
+        .profile-modal-avatar-placeholder {
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          background: rgba(59, 130, 246, 0.1);
+          border: 3px solid #3b82f6;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          flex-shrink: 0;
+        }
+        .profile-modal-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .profile-email {
+          font-size: 12px;
+          color: #94a3b8;
+          margin: 0;
+        }
+        .profile-roles {
+          font-size: 11px;
+          color: #3b82f6;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin: 0;
+        }
+        .profile-edit-form {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .profile-msg {
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .profile-msg.success { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+        .profile-msg.error { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+        .profile-modal-section {
+          border-top: 1px solid rgba(255,255,255,0.06);
+          padding-top: 16px;
+        }
+        .profile-modal-section h4 {
+          font-size: 13px;
+          font-weight: 700;
+          color: #f8fafc;
+          margin: 0 0 12px 0;
+        }
+        .profile-team-info, .profile-no-team {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .profile-team-name {
+          font-size: 14px;
+          font-weight: 700;
+          color: #f8fafc;
+        }
+        .profile-team-members {
+          font-size: 11px;
+          color: #64748b;
+        }
+        .profile-no-team p { font-size: 12px; color: #94a3b8; margin: 0 0 8px 0; }
+        .profile-team-link-btn {
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid rgba(59, 130, 246, 0.25);
+          color: #60a5fa;
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: left;
+        }
+        .profile-team-link-btn:hover { background: rgba(59,130,246,0.2); }
+        .tab-dot {
+          color: #f59e0b;
+          font-size: 8px;
+          vertical-align: super;
+          margin-left: 2px;
         }
       `}</style>
     </div>

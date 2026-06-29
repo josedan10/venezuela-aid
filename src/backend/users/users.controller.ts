@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { RegisterDto } from './dto/register.dto';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
@@ -40,5 +40,11 @@ export class UsersController {
   @Post('toggle-availability')
   async toggleAvailability(@Body() body: any) {
     return this.usersService.toggleAvailability(body.driverId, body.available);
+  }
+
+  @UseGuards(FirebaseAuthGuard)
+  @Patch('profile')
+  async updateProfile(@Request() req: any, @Body() body: any) {
+    return this.usersService.updateProfile(req.user.id, body);
   }
 }

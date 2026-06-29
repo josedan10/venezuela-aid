@@ -168,4 +168,15 @@ export class UsersService {
       user,
     };
   }
+
+  async updateProfile(userId: string, data: { name?: string }) {
+    if (!data.name || data.name.trim().length === 0) {
+      throw new BadRequestException('El nombre no puede estar vacío.');
+    }
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { name: data.name.trim() },
+    });
+    return { message: 'Perfil actualizado correctamente.', user };
+  }
 }
