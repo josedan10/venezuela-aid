@@ -202,20 +202,28 @@ export default function Home() {
   }, [gpsIntervalId]);
 
   // Auto-switch to user's dashboard tab on login or refresh
+  // Auto-switch to user's dashboard tab on login, register or refresh
   useEffect(() => {
-    if (currentUser && activeTab === 'mapa_publico') {
+    if (currentUser) {
       const roles = currentUser.roles.split(',');
-      if (roles.includes('ADMIN')) {
-        setActiveTab('admin');
-      } else if (roles.includes('DRIVER')) {
-        setActiveTab('driver');
-      } else if (roles.includes('NGO')) {
-        setActiveTab('ngo');
-      } else if (roles.includes('DONOR')) {
-        setActiveTab('donor');
+      const allowedTabsForUser = ['mapa_publico', 'equipos'];
+      if (roles.includes('ADMIN')) allowedTabsForUser.push('admin');
+      if (roles.includes('DRIVER')) allowedTabsForUser.push('driver');
+      if (roles.includes('NGO')) allowedTabsForUser.push('ngo');
+      if (roles.includes('DONOR')) allowedTabsForUser.push('donor');
+
+      if (!allowedTabsForUser.includes(activeTab) || activeTab === 'mapa_publico' || activeTab === 'register') {
+        if (roles.includes('ADMIN')) setActiveTab('admin');
+        else if (roles.includes('DRIVER')) setActiveTab('driver');
+        else if (roles.includes('NGO')) setActiveTab('ngo');
+        else if (roles.includes('DONOR')) setActiveTab('donor');
+      }
+    } else {
+      if (['donor', 'ngo', 'driver', 'admin', 'equipos'].includes(activeTab)) {
+        setActiveTab('mapa_publico');
       }
     }
-  }, [currentUser]);
+  }, [currentUser, activeTab]);
 
   // Request browser geolocation on mount
   useEffect(() => {
@@ -1263,9 +1271,13 @@ export default function Home() {
                 </div>
               </div>
               
-              {currentUser ? (
+              {firebaseUser ? (
                 <div className="header-session-info">
-                  <span>Conectado: <strong>{currentUser.name}</strong></span>
+                  {currentUser ? (
+                    <span>Conectado: <strong>{currentUser.name}</strong></span>
+                  ) : (
+                    <span>Cargando perfil...</span>
+                  )}
                   <button onClick={handleLogout} className="logout-btn">Salir</button>
                 </div>
               ) : (
@@ -1443,7 +1455,7 @@ export default function Home() {
 
                 {/* REGISTER TAB */}
                 {activeTab === 'register' && !currentUser && (
-                  <RegisterForm onRegisterSuccess={() => setActiveTab('donor')} />
+                  <RegisterForm onRegisterSuccess={() => {}} />
                 )}
 
                 {/* DONOR DASHBOARD */}
