@@ -77,31 +77,44 @@ export const AuthProvider = ({ children }) => {
         setUser(firebaseUser);
         localStorage.setItem('firebase:user', JSON.stringify(serializableUser));
 
-        const idToken = await firebaseUser.getIdToken();
+        let idToken = await firebaseUser.getIdToken();
         setToken(idToken);
         localStorage.setItem('firebase:token', idToken);
 
-        // Fetch DB user profile
-        try {
-          console.log('AuthContext: Syncing user profile with backend');
-          const response = await fetch(`${API_URL}/users/me`, {
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-            },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('AuthContext: Profile sync success', data.user.email);
-            setDbUser(data.user);
-            localStorage.setItem('firebase:dbUser', JSON.stringify(data.user));
-          } else {
-            console.warn('AuthContext: Profile sync failed or user not yet in DB', response.status);
-            setDbUser(null);
-            localStorage.removeItem('firebase:dbUser');
+        // Fetch DB user profile — retry up to 3 times with backoff in case
+        // the token is still being validated by the backend after a fresh login.
+        let data = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 800));
+            console.log(`AuthContext: Syncing user profile (attempt ${attempt + 1})`);
+            const response = await fetch(`${API_URL}/users/me`, {
+              headers: { Authorization: `Bearer ${idToken}` },
+            });
+            if (response.ok) {
+              data = await response.json();
+              break;
+            } else if (response.status === 401 && attempt < 2) {
+              // Token may not be propagated yet — refresh and retry
+              const freshToken = await firebaseUser.getIdToken(true);
+              idToken = freshToken;
+              setToken(freshToken);
+              localStorage.setItem('firebase:token', freshToken);
+              console.warn(`AuthContext: 401 on attempt ${attempt + 1}, retrying with fresh token`);
+            } else {
+              console.warn('AuthContext: Profile sync failed', response.status);
+              break;
+            }
+          } catch (err) {
+            console.error('AuthContext: Network error syncing profile', err);
+            break;
           }
-        } catch (error) {
-          console.error("Failed to fetch DB user profile:", error);
+        }
+        if (data) {
+          console.log('AuthContext: Profile sync success', data.user.email);
+          setDbUser(data.user);
+          localStorage.setItem('firebase:dbUser', JSON.stringify(data.user));
+        } else {
           setDbUser(null);
           localStorage.removeItem('firebase:dbUser');
         }

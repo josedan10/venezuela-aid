@@ -553,13 +553,13 @@ export default function Home() {
     };
   }, [currentUser, myTeam?.inTeam, teamSharing, userGeolocation, offlineSimulation]);
 
-  // Fetch available teams and details when token is available
+  // Fetch available teams and details once the DB profile is confirmed ready
   useEffect(() => {
-    if (authToken) {
+    if (authToken && currentUser) {
       fetchMyTeamDetails();
       fetchAvailableTeams();
     }
-  }, [authToken]);
+  }, [authToken, currentUser]);
 
   useEffect(() => {
     if (showProfileModal && currentUser) setProfileName(currentUser.name);
