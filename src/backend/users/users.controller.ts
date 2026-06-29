@@ -26,6 +26,12 @@ export class UsersController {
     return this.usersService.completeDriverProfile(req.user.id, body);
   }
 
+  @UseGuards(FirebaseAuthGuard)
+  @Post('save-selfie')
+  async saveSelfie(@Request() req: any, @Body() body: any) {
+    return this.usersService.saveSelfie(req.user.id, body.selfieUrl);
+  }
+
   @Post('approve-driver/:id')
   async approveDriver(@Param('id') driverId: string) {
     return this.usersService.approveDriver(driverId);

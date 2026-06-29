@@ -154,4 +154,18 @@ export class UsersService {
       available,
     };
   }
+
+  async saveSelfie(userId: string, selfieUrl: string) {
+    if (!selfieUrl) {
+      throw new BadRequestException('La selfie es obligatoria.');
+    }
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { selfieUrl },
+    });
+    return {
+      message: 'Selfie guardada exitosamente.',
+      user,
+    };
+  }
 }

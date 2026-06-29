@@ -26,6 +26,7 @@ model User {
   email             String             @unique
   name              String
   roles             String             @default("DONOR") // Comma-separated roles: DONOR, NGO, DRIVER, ADMIN
+  selfieUrl         String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   driverDetails     DriverDetails?

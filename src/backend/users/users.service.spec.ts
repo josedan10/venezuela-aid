@@ -16,6 +16,7 @@ describe('UsersService', () => {
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
     },
     driverDetails: {
       findUnique: jest.fn(),
@@ -210,6 +211,28 @@ describe('UsersService', () => {
 
       await expect(service.toggleAvailability(driverId, true)).rejects.toThrow(
         new BadRequestException('La cuenta de conductor no está verificada.'),
+      );
+    });
+  });
+
+  describe('saveSelfie', () => {
+    it('should successfully save user selfie', async () => {
+      const mockUser = { id: 'user-id-123', email: 'test@example.com', selfieUrl: 'data:image/png;base64,...' };
+      mockPrisma.user.update.mockResolvedValue(mockUser);
+
+      const result = await service.saveSelfie('user-id-123', 'data:image/png;base64,...');
+
+      expect(result.message).toBe('Selfie guardada exitosamente.');
+      expect(result.user.selfieUrl).toBe('data:image/png;base64,...');
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-id-123' },
+        data: { selfieUrl: 'data:image/png;base64,...' },
+      });
+    });
+
+    it('should throw BadRequestException if selfieUrl is empty', async () => {
+      await expect(service.saveSelfie('user-id-123', '')).rejects.toThrow(
+        new BadRequestException('La selfie es obligatoria.'),
       );
     });
   });

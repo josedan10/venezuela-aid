@@ -13,7 +13,7 @@ import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
-  const { user: firebaseUser, dbUser, token: authToken, logout, setDbUser } = useAuth();
+  const { user: firebaseUser, dbUser, token: authToken, logout, setDbUser, loading } = useAuth();
   const currentUser = dbUser;
   const [activeTab, setActiveTab] = useState('mapa_publico'); // mapa_publico, donor, ngo, driver, admin, register
   const [showPanels, setShowPanels] = useState(true);
@@ -78,6 +78,19 @@ export default function Home() {
   const [locationLog, setLocationLog] = useState([]);
   const [offlineSimulation, setOfflineSimulation] = useState(false);
   const [offlineCount, setOfflineCount] = useState(0);
+
+  // Driver settings and nearby Needs
+  const [driverRadius, setDriverRadius] = useState(15);
+  const [driverGpsSharing, setDriverGpsSharing] = useState(true);
+
+  // Selfie capture states
+  const [cameraActive, setCameraActive] = useState(false);
+  const [selfieCaptureUrl, setSelfieCaptureUrl] = useState(null);
+  const [selfieSaving, setSelfieSaving] = useState(false);
+  const [selfieError, setSelfieError] = useState('');
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
   // Delivery confirmation fields
   const [deliverySignature, setDeliverySignature] = useState('');
@@ -187,6 +200,22 @@ export default function Home() {
       if (gpsIntervalId) clearInterval(gpsIntervalId);
     };
   }, [gpsIntervalId]);
+
+  // Auto-switch to user's dashboard tab on login or refresh
+  useEffect(() => {
+    if (currentUser && activeTab === 'mapa_publico') {
+      const roles = currentUser.roles.split(',');
+      if (roles.includes('ADMIN')) {
+        setActiveTab('admin');
+      } else if (roles.includes('DRIVER')) {
+        setActiveTab('driver');
+      } else if (roles.includes('NGO')) {
+        setActiveTab('ngo');
+      } else if (roles.includes('DONOR')) {
+        setActiveTab('donor');
+      }
+    }
+  }, [currentUser]);
 
   // Request browser geolocation on mount
   useEffect(() => {
@@ -596,6 +625,10 @@ export default function Home() {
 
   const startGPSTracking = () => {
     if (gpsIntervalId) clearInterval(gpsIntervalId);
+    if (!driverGpsSharing) {
+      console.log('[GPS] Rastro GPS desactivado en configuración.');
+      return;
+    }
 
     console.log('[GPS] Iniciando rastreo de coordenadas...');
     let lat = 10.5186;
@@ -630,6 +663,97 @@ export default function Home() {
     if (gpsIntervalId) {
       clearInterval(gpsIntervalId);
       setGpsIntervalId(null);
+    }
+  };
+
+  const toggleGpsSharing = () => {
+    const nextVal = !driverGpsSharing;
+    setDriverGpsSharing(nextVal);
+    if (nextVal) {
+      if (activeTask) startGPSTracking();
+    } else {
+      stopGPSTracking();
+      sendLocation(currentUser?.id, null, null);
+    }
+  };
+
+  const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radio de la tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const startCamera = async () => {
+    try {
+      setSelfieError('');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setCameraActive(true);
+      }
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      setSelfieError('No se pudo acceder a la cámara. Por favor otorga permisos de cámara.');
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setSelfieCaptureUrl(dataUrl);
+      
+      // Detener flujo de cámara
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      setCameraActive(false);
+    }
+  };
+
+  const retakePhoto = () => {
+    setSelfieCaptureUrl(null);
+    startCamera();
+  };
+
+  const saveSelfie = async () => {
+    if (!selfieCaptureUrl) return;
+    setSelfieSaving(true);
+    setSelfieError('');
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/save-selfie`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ selfieUrl: selfieCaptureUrl }),
+      });
+      if (response.ok) {
+        await fetchProfile();
+      } else {
+        const data = await response.json();
+        throw new Error(data.message || 'Error al guardar la selfie');
+      }
+    } catch (err) {
+      setSelfieError(err.message);
+    } finally {
+      setSelfieSaving(false);
     }
   };
 
@@ -849,6 +973,234 @@ export default function Home() {
   const memoizedTeamMembers = useMemo(() => {
     return myTeam?.inTeam ? myTeam.team.members : [];
   }, [myTeam?.inTeam, myTeam?.team?.members]);
+
+  if (loading) {
+    return (
+      <div className="home-wrapper">
+        <div className="app-loading-container">
+          <div className="spinner"></div>
+          <p>Cargando AyudaVenezuela...</p>
+        </div>
+        <style jsx>{`
+          .app-loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: white;
+            font-family: system-ui, sans-serif;
+            background: #0b0f19;
+          }
+          .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3b82f6;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // If user is authenticated but has no selfie, force selfie capture!
+  if (currentUser && !currentUser.selfieUrl) {
+    return (
+      <div className="home-wrapper">
+        <div className="selfie-capture-overlay glass animate-fade-in">
+          <div className="selfie-card glass-card">
+            <span className="selfie-badge-icon">📸</span>
+            <h2>Verificación de Identidad Requerida</h2>
+            <p className="selfie-instructions">
+              Para comenzar a operar en <strong>AyudaVenezuela</strong>, debes tomarte una selfie en vivo utilizando tu cámara. 
+              Esto nos permite garantizar que todos los colaboradores sean personas reales.
+            </p>
+            
+            <div className="camera-viewport-container">
+              {selfieCaptureUrl ? (
+                <img src={selfieCaptureUrl} className="selfie-preview-img" alt="Selfie Capturada" />
+              ) : (
+                <video ref={videoRef} autoPlay playsInline className="selfie-video-preview"></video>
+              )}
+              
+              {!cameraActive && !selfieCaptureUrl && (
+                <div className="camera-placeholder">
+                  <span>Cámara inactiva</span>
+                </div>
+              )}
+            </div>
+
+            <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
+
+            {selfieError && <div className="selfie-error-msg">⚠️ {selfieError}</div>}
+
+            <div className="selfie-actions-row">
+              {!cameraActive && !selfieCaptureUrl && (
+                <button onClick={startCamera} className="selfie-action-btn primary">
+                  Activar Cámara
+                </button>
+              )}
+
+              {cameraActive && (
+                <button onClick={capturePhoto} className="selfie-action-btn capture">
+                  Capturar Foto
+                </button>
+              )}
+
+              {selfieCaptureUrl && (
+                <>
+                  <button onClick={saveSelfie} disabled={selfieSaving} className="selfie-action-btn primary">
+                    {selfieSaving ? 'Guardando...' : 'Guardar y Continuar'}
+                  </button>
+                  <button onClick={retakePhoto} disabled={selfieSaving} className="selfie-action-btn secondary">
+                    Tomar Otra
+                  </button>
+                </>
+              )}
+            </div>
+            
+            <button onClick={handleLogout} className="selfie-logout-btn">Cerrar Sesión</button>
+          </div>
+        </div>
+        <style jsx>{`
+          .selfie-capture-overlay {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(11, 15, 25, 0.9);
+            box-sizing: border-box;
+            padding: 20px;
+          }
+          .selfie-card {
+            max-width: 440px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            border-radius: 20px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+          }
+          .selfie-badge-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+          }
+          .selfie-card h2 {
+            font-size: 20px;
+            color: #f8fafc;
+            margin: 0 0 10px 0;
+            font-weight: 700;
+          }
+          .selfie-instructions {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.5;
+            margin-bottom: 20px;
+          }
+          .camera-viewport-container {
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 4px solid #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+            position: relative;
+            background: #000;
+            margin-bottom: 20px;
+          }
+          .selfie-video-preview, .selfie-preview-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+          .camera-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 13px;
+          }
+          .selfie-error-msg {
+            color: #ef4444;
+            font-size: 12px;
+            margin-bottom: 15px;
+            font-weight: bold;
+          }
+          .selfie-actions-row {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 15px;
+          }
+          .selfie-action-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+          }
+          .selfie-action-btn.primary {
+            background-color: #3b82f6;
+            color: white;
+          }
+          .selfie-action-btn.primary:hover {
+            background-color: #2563eb;
+          }
+          .selfie-action-btn.capture {
+            background-color: #ef4444;
+            color: white;
+            animation: pulse-red 1.5s infinite;
+          }
+          .selfie-action-btn.secondary {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+          }
+          .selfie-action-btn.secondary:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+          }
+          .selfie-logout-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 12px;
+            cursor: pointer;
+            transition: color 0.2s;
+            margin-top: 10px;
+            text-decoration: underline;
+          }
+          .selfie-logout-btn:hover {
+            color: #f8fafc;
+          }
+          @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="home-wrapper">
@@ -1250,6 +1602,72 @@ export default function Home() {
                                   </div>
                                 )}
                               </div>
+
+                              {/* Driver Alert Radius & GPS Sharing Settings */}
+                              <div className="driver-settings-card glass-card">
+                                <h4>⚙️ Ajustes del Conductor</h4>
+                                
+                                <div className="setting-row">
+                                  <label>Rastreo y Compartición de Ubicación (GPS):</label>
+                                  <button
+                                    onClick={toggleGpsSharing}
+                                    type="button"
+                                    className={`toggle-btn ${driverGpsSharing ? 'online' : 'offline'}`}
+                                  >
+                                    {driverGpsSharing ? '🟢 Transmitiendo GPS' : '🔴 GPS Detenido'}
+                                  </button>
+                                </div>
+
+                                <div className="setting-row" style={{ marginTop: '14px' }}>
+                                  <label>Radio de Cobertura para Alertas: <strong>{driverRadius} km</strong></label>
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="50"
+                                    value={driverRadius}
+                                    onChange={(e) => setDriverRadius(parseInt(e.target.value))}
+                                    className="radius-range-slider"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Needs in Range Alerts list */}
+                              <div className="nearby-needs-card glass-card">
+                                <h4>🔔 Alertas Cercanas en tu Zona ({driverRadius} km)</h4>
+                                <div className="nearby-needs-list">
+                                  {needsQueue
+                                    .filter(need => need.status === 'PENDING')
+                                    .filter(need => {
+                                      if (!need.latitude || !need.longitude) return false;
+                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
+                                      return dist <= driverRadius;
+                                    })
+                                    .map(need => {
+                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
+                                      return (
+                                        <div key={need.id} className="nearby-need-row">
+                                          <div className="need-meta">
+                                            <span className="need-location">{need.state} - {need.sector}</span>
+                                            <span className="need-distance">{dist.toFixed(1)} km</span>
+                                          </div>
+                                          <p className="need-desc-text">{need.description}</p>
+                                          <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                                            Prioridad: {need.urgencyScore}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  {needsQueue
+                                    .filter(need => need.status === 'PENDING')
+                                    .filter(need => {
+                                      if (!need.latitude || !need.longitude) return false;
+                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
+                                      return dist <= driverRadius;
+                                    }).length === 0 && (
+                                      <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
+                                    )}
+                                </div>
+                              </div>
                             </>
                           )}
                         </div>
@@ -1276,6 +1694,18 @@ export default function Home() {
                             <div className="task-details">
                               <p>ID: <code>{activeTask.id}</code></p>
                               <p>Ubicación GPS: {driverLat.toFixed(4)}, {driverLng.toFixed(4)}</p>
+                              {activeTask.need && activeTask.need.latitude && activeTask.need.longitude && (
+                                <div className="maps-navigation-box">
+                                  <a 
+                                    href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="google-maps-btn"
+                                  >
+                                    🗺️ Abrir en Google Maps para Navegar
+                                  </a>
+                                </div>
+                              )}
                             </div>
 
                             <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
@@ -2555,6 +2985,94 @@ export default function Home() {
           padding: 8px 12px;
           border-radius: 8px;
           font-size: 11px;
+        }
+
+        /* Driver setting adjustments & alert cards */
+        .driver-settings-card, .nearby-needs-card {
+          margin-top: 14px;
+          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          padding-top: 14px;
+        }
+        .setting-row {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .setting-row label {
+          font-size: 11px;
+          color: #94a3b8;
+          text-transform: uppercase;
+          font-weight: bold;
+        }
+        .radius-range-slider {
+          width: 100%;
+          cursor: pointer;
+          accent-color: #3b82f6;
+          margin-top: 4px;
+        }
+        .nearby-needs-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: 250px;
+          overflow-y: auto;
+          margin-top: 10px;
+        }
+        .nearby-need-row {
+          background: rgba(0, 0, 0, 0.25);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+          padding: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .need-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .need-location {
+          font-size: 12px;
+          font-weight: 700;
+          color: #f8fafc;
+        }
+        .need-distance {
+          font-size: 10px;
+          color: #38bdf8;
+          font-weight: bold;
+        }
+        .need-desc-text {
+          font-size: 11px;
+          color: #cbd5e1;
+          margin: 0;
+        }
+        .no-needs-msg {
+          font-size: 11px;
+          color: #94a3b8;
+          text-align: center;
+          padding: 12px;
+          margin: 0;
+        }
+        .google-maps-btn {
+          display: inline-block;
+          width: 100%;
+          text-align: center;
+          padding: 11px;
+          background-color: rgba(16, 185, 129, 0.15);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #34d399;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: 700;
+          text-decoration: none;
+          margin-top: 10px;
+          box-sizing: border-box;
+          transition: all 0.2s;
+        }
+        .google-maps-btn:hover {
+          background-color: rgba(16, 185, 129, 0.25);
+          transform: translateY(-1px);
         }
 
         .proposal-card {
