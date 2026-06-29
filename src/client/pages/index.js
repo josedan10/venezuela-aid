@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import RegisterForm from '../components/RegisterForm';
 import ResourceCatalogForm from '../components/ResourceCatalogForm';
@@ -839,6 +839,17 @@ export default function Home() {
 
   const userRoles = currentUser ? currentUser.roles.split(',') : [];
 
+  const memoizedDriverLocation = useMemo(() => {
+    if (currentUser && userRoles.includes('DRIVER')) {
+      return { lat: driverLat, lng: driverLng };
+    }
+    return null;
+  }, [currentUser, userRoles.join(','), driverLat, driverLng]);
+
+  const memoizedTeamMembers = useMemo(() => {
+    return myTeam?.inTeam ? myTeam.team.members : [];
+  }, [myTeam?.inTeam, myTeam?.team?.members]);
+
   return (
     <div className="home-wrapper">
       <Head>
@@ -849,9 +860,9 @@ export default function Home() {
       <MapComponent
         needs={needsQueue}
         collectionCenters={collectionCentersList}
-        driverLocation={currentUser && userRoles.includes('DRIVER') ? { lat: driverLat, lng: driverLng } : null}
+        driverLocation={memoizedDriverLocation}
         userGeolocation={userGeolocation}
-        teamMembers={myTeam?.inTeam ? myTeam.team.members : []}
+        teamMembers={memoizedTeamMembers}
         currentUser={currentUser}
         activeTask={activeTask}
         onMapClick={isSelectingLocation ? handleMapClick : null}

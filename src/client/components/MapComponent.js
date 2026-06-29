@@ -351,6 +351,7 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
         initialZoomDoneRef.current = true;
       } else if (!initialZoomDoneRef.current && needs.length === 0 && collectionCenters.length === 0) {
         map.setView([10.5186, -66.9503], 12);
+        initialZoomDoneRef.current = true;
       }
 
       // Focus on active task route ONCE when task is initiated
