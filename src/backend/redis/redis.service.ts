@@ -1,0 +1,52 @@
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
+
+@Injectable()
+export class RedisService implements OnModuleInit, OnModuleDestroy {
+  private client: Redis;
+
+  constructor(private configService: ConfigService) {}
+
+  onModuleInit() {
+    const redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://localhost:6380';
+    this.client = new Redis(redisUrl);
+  }
+
+  onModuleDestroy() {
+    this.client.disconnect();
+  }
+
+  getClient(): Redis {
+    return this.client;
+  }
+
+  // Driver Availability Helpers
+  async setDriverAvailability(driverId: string, available: boolean): Promise<void> {
+    const key = `driver:${driverId}:status`;
+    await this.client.set(key, available ? 'Disponible' : 'No Disponible');
+  }
+
+  async getDriverAvailability(driverId: string): Promise<string> {
+    const key = `driver:${driverId}:status`;
+    const val = await this.client.get(key);
+    return val || 'No Disponible';
+  }
+
+  // Driver Location Helpers (using Redis Geo)
+  async updateDriverLocation(driverId: string, latitude: number, longitude: number): Promise<void> {
+    // Key "drivers:locations" stores geo coordinates
+    await this.client.geoadd('drivers:locations', longitude, latitude, driverId);
+  }
+
+  async removeDriverLocation(driverId: string): Promise<void> {
+    await this.client.zrem('drivers:locations', driverId);
+  }
+
+  async findNearbyDrivers(latitude: number, longitude: number, radiusKm: number): Promise<string[]> {
+    // GEORADIUS key longitude latitude radius km
+    // Returns array of driverIds
+    const results = await this.client.georadius('drivers:locations', longitude, latitude, radiusKm, 'km');
+    return results as string[];
+  }
+}

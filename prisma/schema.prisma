@@ -1,0 +1,136 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  DONOR
+  NGO
+  DRIVER
+  ADMIN
+}
+
+enum DriverStatus {
+  PENDING_APPROVAL
+  VERIFIED
+  REJECTED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  firebaseId    String         @unique
+  email         String         @unique
+  name          String
+  role          Role
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  driverDetails DriverDetails?
+  needsCreated  Need[]         @relation("NGONeeds")
+  dispatches    DispatchTask[] @relation("DriverDispatches")
+}
+
+model DriverDetails {
+  id             String       @id @default(uuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id])
+  cedula         String       @unique
+  vehicleDetails String
+  licensePlate   String
+  licenseDocUrl  String
+  status         DriverStatus @default(PENDING_APPROVAL)
+  verifiedAt     DateTime?
+}
+
+enum ResourceCategory {
+  MEDICINES
+  FOOD
+  BLOOD_DONORS
+  HELPERS
+  MACHINES
+  RESCUE_TEAMS
+}
+
+model Resource {
+  id             String           @id @default(uuid())
+  name           String
+  category       ResourceCategory
+  stockQuantity  Int              @default(0)
+  expirationDate DateTime? // Required if category is MEDICINES or FOOD
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  stockTrans     StockTransaction[]
+  needItems      NeedItem[]
+}
+
+model StockTransaction {
+  id          String   @id @default(uuid())
+  resourceId  String
+  resource    Resource @relation(fields: [resourceId], references: [id])
+  quantity    Int // positive for additions, negative for deductions
+  description String
+  createdAt   DateTime @default(now())
+}
+
+enum NeedStatus {
+  PENDING
+  ALLOCATED
+  FULFILLED
+  CANCELLED
+}
+
+model Need {
+  id            String         @id @default(uuid())
+  ngoId         String
+  ngo           User           @relation("NGONeeds", fields: [ngoId], references: [id])
+  description   String
+  urgencyScore  Int // calculated priority: 1-100
+  isImmediate   Boolean        @default(false) // urgencyScore >= 80 -> "ATENCIÓN INMEDIATA"
+  state         String // Manual fallback for Estado
+  sector        String // Manual fallback for Sector
+  latitude      Float?
+  longitude     Float?
+  status        NeedStatus     @default(PENDING)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  items         NeedItem[]
+  dispatchTasks DispatchTask[]
+}
+
+model NeedItem {
+  id         String   @id @default(uuid())
+  needId     String
+  need       Need     @relation(fields: [needId], references: [id])
+  resourceId String
+  resource   Resource @relation(fields: [resourceId], references: [id])
+  quantity   Int
+}
+
+enum DispatchStatus {
+  PROPOSED
+  ACCEPTED
+  EN_ROUTE
+  ALERTA_CONEXION
+  DELIVERED
+  TIMED_OUT
+  CANCELLED
+}
+
+model DispatchTask {
+  id           String         @id @default(uuid())
+  needId       String
+  need         Need           @relation(fields: [needId], references: [id])
+  driverId     String
+  driver       User           @relation("DriverDispatches", fields: [driverId], references: [id])
+  status       DispatchStatus @default(PROPOSED)
+  proposedAt   DateTime       @default(now())
+  acceptedAt   DateTime?
+  timeoutAt    DateTime
+  signatureUrl String?
+  photoUrl     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}

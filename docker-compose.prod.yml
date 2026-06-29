@@ -1,0 +1,137 @@
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: aid-traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL:-admin@aidvenezuela.org}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --ping=true
+      - --accesslog=true
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - aid-production-network
+
+  mysql-aid-production:
+    image: mysql:8.0
+    container_name: aid-mysql-production
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-aidpassword}
+      MYSQL_DATABASE: aid_venezuela
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - aid-production-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-aid-production:
+    image: redis:7-alpine
+    container_name: aid-redis-production
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - aid-production-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  aid-api-production:
+    image: aid-api-production:latest
+    container_name: aid-api-production
+    build:
+      context: .
+      dockerfile: docker/production/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      mysql-aid-production:
+        condition: service_healthy
+      redis-aid-production:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql://root:${MYSQL_ROOT_PASSWORD:-aidpassword}@mysql-aid-production:3306/aid_venezuela
+      - REDIS_URL=redis://redis-aid-production:6379
+      - PORT=5001
+      - NODE_ENV=production
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_SUBJECT=${VAPID_SUBJECT}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL}
+      - SECURITY_ALERT_EMAIL_TO=${SECURITY_ALERT_EMAIL_TO}
+      - SECURITY_ALERT_EMAIL_FROM=${SECURITY_ALERT_EMAIL_FROM}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.aid-api.rule=Host(`${API_DOMAIN:-api.aidvenezuela.org}`)
+      - traefik.http.routers.aid-api.entrypoints=websecure
+      - traefik.http.routers.aid-api.tls=true
+      - traefik.http.routers.aid-api.tls.certresolver=letsencrypt
+      - traefik.http.services.aid-api.loadbalancer.server.port=5001
+    networks:
+      - aid-production-network
+
+  aid-ui-production:
+    image: aid-ui-production:latest
+    container_name: aid-ui-production
+    build:
+      context: .
+      dockerfile: docker/production/Dockerfile.ui
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.aidvenezuela.org}
+        - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+        - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+        - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+        - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+        - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+        - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
+    restart: unless-stopped
+    depends_on:
+      - aid-api-production
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.aid-ui.rule=Host(`${UI_DOMAIN:-aidvenezuela.org}`)
+      - traefik.http.routers.aid-ui.entrypoints=websecure
+      - traefik.http.routers.aid-ui.tls=true
+      - traefik.http.routers.aid-ui.tls.certresolver=letsencrypt
+      - traefik.http.services.aid-ui.loadbalancer.server.port=3000
+    networks:
+      - aid-production-network
+
+networks:
+  aid-production-network:
+    name: aid-production-network
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  traefik_letsencrypt:

@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+.git
+.env
+.atl
+openspec
+coverage
+.gemini
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.DS_Store
+*.md
