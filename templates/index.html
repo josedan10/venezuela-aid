@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venezuela Reporta - Mapa de Ayuda</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Main App Container -->
+    <div class="app-container">
+
+        <!-- 1. Main Navigation Header (Desktop) -->
+        <header class="main-header">
+            <div class="header-logo">
+                <span class="logo-text">Venezuela Reporta</span>
+            </div>
+            <nav class="desktop-nav">
+                <a href="#" class="nav-item">Inicio</a>
+                <a href="#" class="nav-item active">Mapa Interactivo</a>
+                <a href="#" class="nav-item">Cómo Ayudar</a>
+                <a href="#" class="nav-item">Añadir Punto</a>
+                <a href="#" class="nav-item">Sobre Nosotros</a>
+            </nav>
+            <div class="header-actions">
+                <button class="icon-btn profile-btn" aria-label="Perfil de usuario">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
+                    </svg>
+                </button>
+                <div class="lang-selector">
+                    <svg class="globe-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path
+                            d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95a15.65 15.65 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.92 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.34-.14 2 0 .66.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56A7.987 7.987 0 0 1 5.08 16zm2.95-8H5.08a7.987 7.987 0 0 1 4.33-3.56A15.65 15.65 0 0 0 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.34-.16-2 0-.66.07-1.34.16-2h4.68c.09.66.16 1.34.16 2 0 .66-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a7.987 7.987 0 0 1-4.33 3.56zM16.36 14c.08-.66.14-1.34.14-2 0-.66-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z" />
+                    </svg>
+                    <span class="lang-text">ES</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M7 10l5 5 5-5z" />
+                    </svg>
+                </div>
+            </div>
+        </header>
+
+        <!-- 2. Interactive Map & Overlay Section -->
+        <main class="map-viewport">
+
+            <!-- Secondary Toolbar (Inside map layout) -->
+            <div class="secondary-toolbar">
+                <button class="toolbar-menu-btn" aria-label="Menú">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1 class="toolbar-title">Venezuela Reporta - Mapa de Ayuda</h1>
+
+                <div class="search-container">
+                    <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="map-search" placeholder="Buscar..." aria-label="Buscar puntos de ayuda">
+                </div>
+
+                <div class="toolbar-actions">
+                    <button class="btn btn-primary btn-add-point">Añadir Punto</button>
+                    <button class="icon-btn hand-selector-btn active" aria-label="Modo Selección">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                            <path
+                                d="M12 2a1 1 0 0 1 .993.883L13 3v4.618l.824-.275a2.021 2.021 0 0 1 1.936.275l.152.128c.553.518.665 1.332.274 1.968l-.128.169-2.072 2.383a1 1 0 0 1-.662.336L13.2 13H10.8a1 1 0 0 1-.98-.804l-.015-.098-.553-2.766-1.573.787a1.5 1.5 0 0 1-1.956-.566l-.083-.142a1.5 1.5 0 0 1 .536-1.996l.163-.082 3.658-1.83a1 1 0 0 1 1.002.046L11 6.136V3a1 1 0 0 1 .883-.993L12 2zm1 14a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3h2z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- The Custom Google Map Container -->
+            <div class="map-wrapper" id="map-wrapper">
+                <div id="map" style="width: 100%; height: 100%;"></div>
+            </div>
+
+            <!-- Compass Widget Overlay (Desktop & Mobile, styled like the image compass) -->
+            <div class="compass-widget" id="compass-widget">
+                <div class="compass-ring">
+                    <div class="compass-needle"></div>
+                    <div class="compass-marks">
+                        <span>N</span>
+                        <span>E</span>
+                        <span>S</span>
+                        <span>O</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Tag Float (Bottom Left) -->
+            <div class="verification-legend">
+                <span class="verification-badge-check">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </span>
+                <span class="legend-text">Verificado</span>
+            </div>
+
+            <!-- Float Action Hand Cursor Indicator / Buttons (matching screenshots) -->
+            <div class="bottom-actions">
+                <button class="btn btn-secondary-float btn-add-point-float">
+                    Añadir Punto
+                </button>
+                <div class="pointer-hand-badge">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                        <path
+                            d="M12 2a1 1 0 0 1 .993.883L13 3v4.618l.824-.275a2.021 2.021 0 0 1 1.936.275l.152.128c.553.518.665 1.332.274 1.968l-.128.169-2.072 2.383a1 1 0 0 1-.662.336L13.2 13H10.8a1 1 0 0 1-.98-.804l-.015-.098-.553-2.766-1.573.787a1.5 1.5 0 0 1-1.956-.566l-.083-.142a1.5 1.5 0 0 1 .536-1.996l.163-.082 3.658-1.83a1 1 0 0 1 1.002.046L11 6.136V3a1 1 0 0 1 .883-.993L12 2zm1 14a3 3 0 0 1 3 3v1a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-1a3 3 0 0 1 3-3h2z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Sparkles details decoration on bottom right matching mockup -->
+            <div class="mockup-sparkles">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
+                    <path
+                        d="M12 2c-.1 2.5-1.5 3.9-4 4 2.5.1 3.9 1.5 4 4 .1-2.5 1.5-3.9 4-4-2.5-.1-3.9-1.5-4-4zm6 12c-.05 1.25-.75 1.95-2 2 1.25.05 1.95.75 2 2 .05-1.25.75-1.95 2-2-1.25-.05-1.95-.75-2-2z" />
+                </svg>
+            </div>
+
+            <!-- Floating Point Details Card ("Acopio - Lumière") -->
+            <section class="detail-card glass-panel" id="detail-card">
+                <div class="card-header">
+                    <div class="title-group">
+                        <span class="card-bullet"></span>
+                        <h2 class="card-title" id="card-title">Acopio - Lumière</h2>
+                    </div>
+                    <span class="status-tag unverified" id="card-verification-status">SIN VERIFICAR</span>
+                </div>
+
+                <div class="location-shared">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" class="loc-icon">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <span class="location-text">Ubicación compartida en Venezuela Reporta</span>
+                </div>
+
+                <div class="tag-row">
+                    <span class="info-badge outline-badge" id="tag-category-1">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                        <span class="badge-text">Centro de acopio</span>
+                    </span>
+                    <span class="info-badge outline-badge" id="tag-category-2">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        <span class="badge-text">Recibe donaciones</span>
+                    </span>
+                </div>
+
+                <div class="status-badge-container">
+                    <span class="info-badge status-open" id="card-open-status">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span class="badge-text">Abierto</span>
+                    </span>
+                </div>
+
+                <div class="needs-section">
+                    <p class="needs-text" id="card-needs">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="needs-icon">
+                            <path
+                                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z">
+                            </path>
+                        </svg>
+                        <strong>Necesita:</strong> <span id="needs-list">agua, higiene, alimentos, medicinas, pañales,
+                            ropa</span>
+                    </p>
+                </div>
+
+                <div class="card-footer">
+                    <span class="footer-source">Fuente: Venezuela Reporta</span>
+                </div>
+            </section>
+
+            <!-- Bottom Detail Sheet ("MÁS DETALLES") -->
+            <section class="more-details-sheet glass-panel" id="more-details-sheet">
+                <!-- Grab handle for mobile bottom drawer -->
+                <div class="sheet-grab-handle"></div>
+
+                <h3 class="sheet-title">MÁS DETALLES</h3>
+
+                <div class="sheet-content">
+                    <div class="details-list">
+                        <div class="detail-item">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="detail-icon">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <div class="detail-info">
+                                <span class="detail-label">Horario</span>
+                                <span class="detail-value" id="detail-schedule">9am - 5pm, Lunes-Viernes</span>
+                            </div>
+                        </div>
+
+                        <div class="detail-item">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="detail-icon">
+                                <path
+                                    d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                                </path>
+                            </svg>
+                            <div class="detail-info">
+                                <span class="detail-label">Contacto</span>
+                                <span class="detail-value" id="detail-contact">Maria R.</span>
+                            </div>
+                        </div>
+
+                        <div class="detail-item">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="detail-icon">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                            <div class="detail-info">
+                                <span class="detail-label">Capacidad de Recepción</span>
+                                <span class="detail-value" id="detail-capacity">Capacidad: Mediana</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Photo of building facade -->
+                    <div class="building-preview-container">
+                        <img src="assets/building.png" id="building-image" alt="Vista del Centro de Acopio"
+                            class="building-preview-img">
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- Logic Script -->
+    <script src="app.js"></script>
+    <!-- Google Maps Javascript API Loader -->
+    <!-- REPLACE YOUR_API_KEY WITH YOUR VALID GOOGLE MAPS API KEY -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA1KIFhiaL_Z1wNI_SKHIVd_2GIJnIlAFQ&callback=initMap"
+        async defer></script>
+</body>
+
+</html>

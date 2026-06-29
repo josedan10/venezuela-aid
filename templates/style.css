@@ -1,0 +1,918 @@
+/* style.css - Premium Stylesheet for Venezuela Reporta */
+
+:root {
+    --primary-blue: #1e3a8a;
+    --primary-blue-hover: #172554;
+    --accent-gold: #f59e0b;
+    --accent-gold-dark: #b45309;
+    --status-green: #10b981;
+    --status-green-bg: rgba(16, 185, 129, 0.15);
+    
+    --map-bg: #80c4e9;
+    --road-color: #ffe4a0;
+    --road-color-fine: #fff5d6;
+    
+    --glass-bg: rgba(255, 255, 255, 0.88);
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+    
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    
+    --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-family);
+    color: var(--text-main);
+    background-color: #f1f5f9;
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 1. App Container */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+}
+
+/* 2. Main Header (Desktop) */
+.main-header {
+    height: 72px;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    z-index: 100;
+}
+
+.header-logo .logo-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    letter-spacing: -0.025em;
+}
+
+.desktop-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.nav-item {
+    color: #475569;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item:hover {
+    color: var(--primary-blue);
+    background-color: #f1f5f9;
+}
+
+.nav-item.active {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--primary-blue);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.icon-btn:hover {
+    background-color: #f1f5f9;
+}
+
+.profile-btn {
+    background-color: #f1f5f9;
+    color: var(--primary-blue);
+    border: 1.5px solid #e2e8f0;
+}
+
+.profile-btn:hover {
+    background-color: #e2e8f0;
+}
+
+.lang-selector {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--primary-blue);
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1.5px solid #e2e8f0;
+    transition: all 0.2s;
+}
+
+.lang-selector:hover {
+    background-color: #f1f5f9;
+    border-color: var(--primary-blue);
+}
+
+.lang-text {
+    font-size: 0.9rem;
+}
+
+/* 3. Map Viewport Container */
+.map-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--map-bg);
+}
+
+/* Secondary Toolbar (Floating overlay inside map viewport) */
+.secondary-toolbar {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    height: 64px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    transition: all 0.3s;
+}
+
+.toolbar-menu-btn {
+    background: none;
+    border: none;
+    color: var(--primary-blue);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.toolbar-menu-btn:hover {
+    background-color: #f1f5f9;
+}
+
+.toolbar-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    margin-left: 12px;
+}
+
+.search-container {
+    flex: 1;
+    max-width: 420px;
+    position: relative;
+    margin: 0 20px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+#map-search {
+    width: 100%;
+    height: 44px;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 22px;
+    padding-left: 48px;
+    padding-right: 20px;
+    font-family: var(--font-family);
+    font-size: 0.95rem;
+    color: var(--text-main);
+    transition: all 0.2s;
+}
+
+#map-search:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn {
+    font-family: var(--font-family);
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(30, 58, 138, 0.25);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-blue-hover);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.hand-selector-btn {
+    background-color: #f1f5f9;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    color: var(--primary-blue);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.hand-selector-btn.active {
+    background-color: #e0f2fe;
+    border-color: #38bdf8;
+    color: #0369a1;
+}
+
+/* 4. Interactive Google Map Container */
+.map-wrapper {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+    background-color: var(--map-bg);
+}
+
+/* 5. Compass Widget Overlay */
+.compass-widget {
+    position: absolute;
+    left: 40px;
+    top: 200px;
+    width: 110px;
+    height: 110px;
+    background: radial-gradient(circle, #fef08a 0%, #f59e0b 100%);
+    border: 4px solid #d97706;
+    border-radius: 50%;
+    box-shadow: 0 10px 25px rgba(217, 119, 6, 0.25), inset 0 2px 5px rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    pointer-events: none;
+    transition: transform 0.1s ease-out;
+}
+
+.compass-ring {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 1px dashed rgba(217, 119, 6, 0.6);
+}
+
+.compass-needle {
+    position: absolute;
+    width: 8px;
+    height: 70px;
+    background: linear-gradient(to bottom, #dc2626 50%, #ffffff 50%);
+    left: calc(50% - 4px);
+    top: calc(50% - 35px);
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    transform: rotate(35deg); /* Default north direction */
+    filter: drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.25));
+    transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.compass-marks span {
+    position: absolute;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #78350f;
+}
+
+.compass-marks span:nth-child(1) { top: 2px; left: 50%; transform: translateX(-50%); }
+.compass-marks span:nth-child(2) { right: 4px; top: 50%; transform: translateY(-50%); }
+.compass-marks span:nth-child(3) { bottom: 2px; left: 50%; transform: translateX(-50%); }
+.compass-marks span:nth-child(4) { left: 4px; top: 50%; transform: translateY(-50%); }
+
+/* 6. Verification Legend Floating Widget */
+.verification-legend {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    background-color: #ffffff;
+    border-radius: 20px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+    border: 1.5px solid #e2e8f0;
+    z-index: 40;
+}
+
+.verification-badge-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.legend-text {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+}
+
+/* 7. Floating Details Card (Glassmorphism) */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 20px;
+}
+
+.detail-card {
+    position: absolute;
+    top: 104px;
+    right: 30px;
+    width: 410px;
+    padding: 24px;
+    z-index: 45;
+    animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: top right;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 10px;
+}
+
+.title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.card-bullet {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background-color: var(--primary-blue);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.card-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    letter-spacing: -0.01em;
+}
+
+.status-tag {
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+.status-tag.unverified {
+    background-color: var(--accent-gold);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+.status-tag.verified-badge {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(30, 58, 138, 0.3);
+}
+
+.location-shared {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.loc-icon {
+    color: var(--text-muted);
+}
+
+.location-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.info-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.outline-badge {
+    background-color: rgba(255,255,255,0.5);
+    border: 1.5px solid #cbd5e1;
+    color: #475569;
+}
+
+.status-badge-container {
+    margin-bottom: 16px;
+}
+
+.status-open {
+    background-color: var(--status-green-bg);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.needs-section {
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.needs-text {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #334155;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.needs-icon {
+    color: #e11d48;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.needs-text strong {
+    color: var(--primary-blue);
+    font-weight: 700;
+}
+
+.card-footer {
+    border-top: 1.5px solid rgba(226, 232, 240, 0.6);
+    padding-top: 12px;
+}
+
+.footer-source {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* 8. Bottom Details Sheet ("MÁS DETALLES") - Desktop Floating */
+.more-details-sheet {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    width: 410px;
+    padding: 20px 24px;
+    z-index: 45;
+}
+
+.sheet-grab-handle {
+    display: none; /* Only for mobile bottom drawer */
+}
+
+.sheet-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #475569;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+    border-bottom: 2px solid rgba(226, 232, 240, 0.6);
+    padding-bottom: 6px;
+}
+
+.sheet-content {
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detail-icon {
+    color: var(--primary-blue);
+    flex-shrink: 0;
+}
+
+.detail-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.detail-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+}
+
+.building-preview-container {
+    width: 100px;
+    height: 100px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid #ffffff;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.building-preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.building-preview-img:hover {
+    transform: scale(1.1);
+}
+
+/* 9. Floating Bottom-Center Action elements for Desktop */
+.bottom-actions {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 45;
+}
+
+.btn-secondary-float {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 12px 24px;
+    box-shadow: 0 10px 20px rgba(30, 58, 138, 0.3);
+    border: 2px solid #ffffff;
+    transition: all 0.2s;
+}
+
+.btn-secondary-float:hover {
+    background-color: var(--primary-blue-hover);
+    transform: translateY(-2px);
+}
+
+.pointer-hand-badge {
+    width: 48px;
+    height: 48px;
+    background-color: #93c5fd;
+    border: 2.5px solid #ffffff;
+    border-radius: 12px;
+    color: #1e3a8a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 15px rgba(30, 58, 138, 0.2);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pointer-hand-badge:hover {
+    background-color: #60a5fa;
+    transform: translateY(-2px) scale(1.05);
+}
+
+/* Sparkles Decoration */
+.mockup-sparkles {
+    position: absolute;
+    bottom: 40px;
+    right: 460px;
+    color: #ffffff;
+    opacity: 0.9;
+    filter: drop-shadow(0 0 4px rgba(255,255,255,0.6));
+    pointer-events: none;
+    animation: sparkleGlow 3s infinite alternate;
+}
+
+@keyframes sparkleGlow {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    100% { transform: scale(1.15); opacity: 1; }
+}
+
+/* ==========================================
+   10. MEDIA QUERIES FOR RESPONSIVE/MOBILE LAYOUT 
+   ========================================== */
+@media (max-width: 768px) {
+    /* Hide Main Navigation Header */
+    .main-header {
+        display: none;
+    }
+    
+    /* Transform Secondary Toolbar to Mobile Sticky Header */
+    .secondary-toolbar {
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        border-radius: 0;
+        border-width: 0 0 1px 0;
+        border-color: #e2e8f0;
+        padding: 0 16px;
+        background: #ffffff;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    
+    .toolbar-title {
+        display: none; /* Hide title to make space for search */
+    }
+    
+    .search-container {
+        margin: 0 10px;
+        max-width: none;
+    }
+    
+    #map-search {
+        height: 38px;
+        font-size: 0.9rem;
+        padding-left: 36px;
+        border-radius: 19px;
+    }
+    
+    .search-icon {
+        left: 12px;
+        width: 16px;
+        height: 16px;
+    }
+    
+    .toolbar-actions {
+        display: none; /* Hide "Añadir Punto" desktop buttons in toolbar */
+    }
+    
+    /* Compass Widget adjustment */
+    .compass-widget {
+        top: auto;
+        bottom: 270px;
+        left: 16px;
+        width: 68px;
+        height: 68px;
+        border-width: 2.5px;
+    }
+    
+    .compass-ring {
+        width: 54px;
+        height: 54px;
+    }
+    
+    .compass-needle {
+        height: 42px;
+        width: 5px;
+        left: calc(50% - 2.5px);
+        top: calc(50% - 21px);
+    }
+    
+    .compass-marks span {
+        font-size: 0.5rem;
+    }
+    
+    /* Legend Adjustment */
+    .verification-legend {
+        display: none; /* Hide on mobile to save screen estate */
+    }
+    
+    /* Details Card Floating Top Center on Mobile */
+    .detail-card {
+        top: 76px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        padding: 16px;
+        border-radius: 16px;
+        transform-origin: top center;
+    }
+    
+    .card-title {
+        font-size: 1.1rem;
+    }
+    
+    .location-text {
+        font-size: 0.75rem;
+    }
+    
+    .info-badge {
+        padding: 4px 10px;
+        font-size: 0.75rem;
+    }
+    
+    .needs-section {
+        padding: 10px 12px;
+        margin-bottom: 10px;
+    }
+    
+    .needs-text {
+        font-size: 0.8rem;
+    }
+    
+    .card-footer {
+        padding-top: 8px;
+    }
+    
+    /* Mobile Bottom sheet details container */
+    .more-details-sheet {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        border-radius: 24px 24px 0 0;
+        padding: 12px 20px 24px 20px;
+        z-index: 55;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15);
+        background: #ffffff;
+        
+        /* Drawer animation state: default collapsed/peek-only, or full */
+        transform: translateY(calc(100% - 64px));
+        transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    
+    .more-details-sheet.expanded {
+        transform: translateY(0);
+    }
+    
+    .sheet-grab-handle {
+        display: block;
+        width: 40px;
+        height: 5px;
+        background-color: #cbd5e1;
+        border-radius: 3px;
+        margin: 0 auto 12px auto;
+        cursor: pointer;
+    }
+    
+    .sheet-title {
+        margin-bottom: 16px;
+        text-align: center;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    
+    .sheet-content {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+    
+    .details-list {
+        gap: 14px;
+    }
+    
+    .detail-item {
+        gap: 12px;
+    }
+    
+    .detail-value {
+        font-size: 0.9rem;
+    }
+    
+    .building-preview-container {
+        width: 100%;
+        height: 140px;
+        border-radius: 12px;
+    }
+    
+    /* Mobile action triggers layout */
+    .bottom-actions {
+        bottom: 80px;
+        left: auto;
+        right: 16px;
+        transform: none;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .btn-secondary-float {
+        display: none; /* Hide floating text button on mobile */
+    }
+    
+    .pointer-hand-badge {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    }
+    
+    .mockup-sparkles {
+        bottom: 270px;
+        right: 16px;
+    }
+}
