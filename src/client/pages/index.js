@@ -232,8 +232,9 @@ export default function Home() {
     };
   }, [gpsIntervalId]);
 
-  // Auto-switch to user's dashboard tab on login or refresh
-  // Auto-switch to user's dashboard tab on login, register or refresh
+  // Auto-switch to user's dashboard tab on login or refresh.
+  // Only redirect away from 'register' tab once logged in, or if the tab
+  // is completely disallowed for the user's role. mapa_publico is always accessible.
   useEffect(() => {
     if (currentUser) {
       const roles = currentUser.roles.split(',');
@@ -243,14 +244,17 @@ export default function Home() {
       if (roles.includes('NGO')) allowedTabsForUser.push('ngo');
       if (roles.includes('DONOR')) allowedTabsForUser.push('donor');
 
-      if (!allowedTabsForUser.includes(activeTab) || activeTab === 'mapa_publico' || activeTab === 'register') {
+      // Only redirect if on a tab the user can't access (e.g. register), not just mapa_publico
+      if (!allowedTabsForUser.includes(activeTab)) {
         if (roles.includes('ADMIN')) setActiveTab('admin');
         else if (roles.includes('DRIVER')) setActiveTab('driver');
         else if (roles.includes('NGO')) setActiveTab('ngo');
         else if (roles.includes('DONOR')) setActiveTab('donor');
+        else setActiveTab('mapa_publico');
       }
     } else {
-      if (['donor', 'ngo', 'driver', 'admin', 'equipos'].includes(activeTab)) {
+      // Guest: kick out of auth-only tabs
+      if (['equipos'].includes(activeTab)) {
         setActiveTab('mapa_publico');
       }
     }
@@ -294,21 +298,14 @@ export default function Home() {
     };
   }, [offlineSimulation]);
 
-  // Handle auto-routing tabs on login
+  // Auto-redirect to role dashboard only on first login (when tab is still mapa_publico or register)
   useEffect(() => {
-    if (dbUser) {
+    if (dbUser && (activeTab === 'mapa_publico' || activeTab === 'register')) {
       const userRoles = dbUser.roles.split(',');
-      if (userRoles.includes('ADMIN')) {
-        setActiveTab('admin');
-      } else if (userRoles.includes('NGO')) {
-        setActiveTab('ngo');
-      } else if (userRoles.includes('DRIVER')) {
-        setActiveTab('driver');
-      } else if (userRoles.includes('DONOR')) {
-        setActiveTab('donor');
-      }
-    } else {
-      setActiveTab('mapa_publico');
+      if (userRoles.includes('ADMIN')) setActiveTab('admin');
+      else if (userRoles.includes('NGO')) setActiveTab('ngo');
+      else if (userRoles.includes('DRIVER')) setActiveTab('driver');
+      else if (userRoles.includes('DONOR')) setActiveTab('donor');
     }
   }, [dbUser]);
 
