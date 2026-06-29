@@ -7,9 +7,9 @@
 /coverage
 
 # production
-/dist
-/.next
-/out
+dist/
+.next/
+out/
 
 # misc
 .DS_Store
