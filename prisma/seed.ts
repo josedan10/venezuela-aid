@@ -1,4 +1,11 @@
-import { PrismaClient, Role, DriverStatus, ResourceCategory, NeedStatus, DispatchStatus } from '@prisma/client';
+import { PrismaClient, DriverStatus, ResourceCategory, NeedStatus, DispatchStatus } from '@prisma/client';
+
+enum Role {
+  DONOR = 'DONOR',
+  NGO = 'NGO',
+  DRIVER = 'DRIVER',
+  ADMIN = 'ADMIN',
+}
 
 const prisma = new PrismaClient();
 
@@ -23,7 +30,7 @@ async function main() {
       email: 'admin@zentra-app.pro',
       firebaseId: 'seed-admin-uid',
       name: 'Administrador General',
-      role: Role.ADMIN,
+      roles: 'ADMIN',
     },
   });
 
@@ -33,7 +40,7 @@ async function main() {
       email: 'ong.caritas@gmail.com',
       firebaseId: 'seed-ngo-caritas-uid',
       name: 'Cáritas Venezuela',
-      role: Role.NGO,
+      roles: 'NGO',
     },
   });
 
@@ -42,7 +49,7 @@ async function main() {
       email: 'ong.cruzroja@gmail.com',
       firebaseId: 'seed-ngo-cruzroja-uid',
       name: 'Cruz Roja Venezolana',
-      role: Role.NGO,
+      roles: 'NGO',
     },
   });
 
@@ -52,17 +59,17 @@ async function main() {
       email: 'donante.polar@empresa.com',
       firebaseId: 'seed-donor-polar-uid',
       name: 'Empresas Polar',
-      role: Role.DONOR,
+      roles: 'DONOR',
     },
   });
 
-  // Verified Driver
+  // Verified Driver + Donor (Multiple Roles)
   const driverVerified = await prisma.user.create({
     data: {
       email: 'conductor.juan@gmail.com',
       firebaseId: 'seed-driver-juan-uid',
       name: 'Juan Pérez',
-      role: Role.DRIVER,
+      roles: 'DRIVER,DONOR',
       driverDetails: {
         create: {
           cedula: 'V-12345678',
@@ -82,7 +89,7 @@ async function main() {
       email: 'conductor.maria@gmail.com',
       firebaseId: 'seed-driver-maria-uid',
       name: 'María Rodríguez',
-      role: Role.DRIVER,
+      roles: 'DRIVER',
       driverDetails: {
         create: {
           cedula: 'V-87654321',

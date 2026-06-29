@@ -2,7 +2,8 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
-import { Role, DriverStatus } from '@prisma/client';
+import { DriverStatus } from '@prisma/client';
+import { Role } from './role.enum';
 
 @Injectable()
 export class UsersService {
@@ -35,83 +36,77 @@ export class UsersService {
       throw new BadRequestException('El usuario de Firebase ya está registrado.');
     }
 
-    // 2. Validate role-specific requirements
-    if (dto.role === Role.DRIVER) {
-      if (!dto.driverDetails || !dto.driverDetails.licenseDocUrl) {
-        throw new BadRequestException('La licencia de conducir es obligatoria para registrarse como conductor.');
-      }
-
-      // Check if driver cedula is already registered
-      const existingDriver = await this.prisma.driverDetails.findUnique({
-        where: { cedula: dto.driverDetails.cedula },
-      });
-      if (existingDriver) {
-        throw new BadRequestException('La cédula ya está registrada para otro conductor.');
-      }
-
-      // Create Driver with status PENDING_APPROVAL
-      const user = await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          firebaseId: dto.firebaseId,
-          name: dto.name,
-          role: Role.DRIVER,
-          driverDetails: {
-            create: {
-              cedula: dto.driverDetails.cedula,
-              vehicleDetails: dto.driverDetails.vehicleDetails,
-              licensePlate: dto.driverDetails.licensePlate,
-              licenseDocUrl: dto.driverDetails.licenseDocUrl,
-              status: DriverStatus.PENDING_APPROVAL,
-            },
-          },
-        },
-        include: { driverDetails: true },
-      });
-
-      return {
-        message: 'Registro completado. Su cuenta está en revisión.',
-        userId: user.id,
-        user,
-      };
-    } else if (dto.role === Role.NGO || dto.role === Role.DONOR) {
-      if (!dto.rif) {
-        throw new BadRequestException('El RIF es obligatorio para registrarse como ONG o Donante.');
-      }
-
-      // Save RIF in the user's record: append it to the name in the database, e.g. "Name (RIF)"
-      const formattedName = `${dto.name} (${dto.rif})`;
-      const user = await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          firebaseId: dto.firebaseId,
-          name: formattedName,
-          role: dto.role,
-        },
-      });
-
-      return {
-        message: 'Registro completado exitosamente.',
-        userId: user.id,
-        user,
-      };
-    } else {
-      // ADMIN or other role
-      const user = await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          firebaseId: dto.firebaseId,
-          name: dto.name,
-          role: dto.role,
-        },
-      });
-
-      return {
-        message: 'Registro completado exitosamente.',
-        userId: user.id,
-        user,
-      };
+    // Create User with basic info (No restrictions, can add RIF or vehicle details later)
+    let formattedName = dto.name;
+    if (dto.rif && (dto.roles.includes('NGO') || dto.roles.includes('DONOR'))) {
+      formattedName = `${dto.name} (${dto.rif})`;
     }
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        firebaseId: dto.firebaseId,
+        name: formattedName,
+        roles: dto.roles,
+      },
+    });
+
+    return {
+      message: 'Registro completado exitosamente.',
+      userId: user.id,
+      user,
+    };
+  }
+
+  async completeDriverProfile(userId: string, details: { cedula: string; vehicleDetails: string; licensePlate: string; licenseDocUrl?: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { driverDetails: true },
+    });
+
+    if (!user || !user.roles.split(',').includes('DRIVER')) {
+      throw new BadRequestException('El usuario no está registrado con el rol de Conductor.');
+    }
+
+    if (!details.cedula || !details.vehicleDetails || !details.licensePlate) {
+      throw new BadRequestException('La cédula, los detalles del vehículo y la placa son obligatorios.');
+    }
+
+    // Check if cedula is already registered to someone else
+    const existingDriver = await this.prisma.driverDetails.findUnique({
+      where: { cedula: details.cedula },
+    });
+    if (existingDriver && existingDriver.userId !== userId) {
+      throw new BadRequestException('La cédula ya está registrada para otro conductor.');
+    }
+
+    if (user.driverDetails) {
+      await this.prisma.driverDetails.update({
+        where: { userId },
+        data: {
+          cedula: details.cedula,
+          vehicleDetails: details.vehicleDetails,
+          licensePlate: details.licensePlate,
+          licenseDocUrl: details.licenseDocUrl || null,
+          status: DriverStatus.PENDING_APPROVAL,
+        },
+      });
+    } else {
+      await this.prisma.driverDetails.create({
+        data: {
+          userId,
+          cedula: details.cedula,
+          vehicleDetails: details.vehicleDetails,
+          licensePlate: details.licensePlate,
+          licenseDocUrl: details.licenseDocUrl || null,
+          status: DriverStatus.PENDING_APPROVAL,
+        },
+      });
+    }
+
+    return {
+      message: 'Perfil de conductor actualizado y enviado para revisión del administrador.',
+    };
   }
 
   async approveDriver(driverId: string) {
@@ -120,7 +115,7 @@ export class UsersService {
       include: { driverDetails: true },
     });
 
-    if (!driver || driver.role !== Role.DRIVER || !driver.driverDetails) {
+    if (!driver || !driver.roles.split(',').includes('DRIVER') || !driver.driverDetails) {
       throw new NotFoundException('Conductor no encontrado.');
     }
 
@@ -143,8 +138,8 @@ export class UsersService {
       include: { driverDetails: true },
     });
 
-    if (!driver || driver.role !== Role.DRIVER || !driver.driverDetails) {
-      throw new NotFoundException('Conductor no encontrado.');
+    if (!driver || !driver.roles.split(',').includes('DRIVER') || !driver.driverDetails) {
+      throw new NotFoundException('Conductor no encontrado o sin perfil registrado.');
     }
 
     if (driver.driverDetails.status !== DriverStatus.VERIFIED) {

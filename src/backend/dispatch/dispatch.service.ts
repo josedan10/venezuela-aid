@@ -3,7 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { ResourcesService } from '../resources/resources.service';
 import { DispatchGateway } from './dispatch.gateway';
-import { DispatchStatus, NeedStatus, Role, DriverStatus, DispatchTask } from '@prisma/client';
+import { DispatchStatus, NeedStatus, DriverStatus, DispatchTask } from '@prisma/client';
+import { Role } from '../users/role.enum';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 
 @Injectable()
@@ -77,7 +78,7 @@ export class DispatchService implements OnModuleInit {
 
       if (
         driverUser &&
-        driverUser.role === Role.DRIVER &&
+        driverUser.roles.split(',').includes(Role.DRIVER) &&
         driverUser.driverDetails?.status === DriverStatus.VERIFIED
       ) {
         // Check availability in Redis

@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Inject, forwardRef } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { DispatchService } from './dispatch.service';
 import { GPSCoordinateDto, UpdateGPSBatchDto } from './dto/update-gps.dto';
 
@@ -23,14 +24,21 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
   // Reverse mapping: Socket ID -> driverId
   private socketToDriverMap = new Map<string, string>();
 
+  // Track any general user socket connections (for team members location updates)
+  private activeUserSockets = new Map<string, string>();
+  private socketToUserMap = new Map<string, string>();
+
   constructor(
     private redisService: RedisService,
+    private prisma: PrismaService,
     @Inject(forwardRef(() => DispatchService))
     private dispatchService: DispatchService,
   ) {}
 
   async handleConnection(socket: Socket) {
     const driverId = socket.handshake.query.driverId as string;
+    const userId = socket.handshake.query.userId as string;
+
     if (driverId) {
       this.activeDriverSockets.set(driverId, socket.id);
       this.socketToDriverMap.set(socket.id, driverId);
@@ -38,7 +46,15 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
       
       // Update availability in Redis when connecting
       await this.redisService.setDriverAvailability(driverId, true);
-    } else {
+    }
+
+    if (userId) {
+      this.activeUserSockets.set(userId, socket.id);
+      this.socketToUserMap.set(socket.id, userId);
+      console.log(`[SOCKET] Usuario conectado: ID=${userId}, SocketID=${socket.id}`);
+    }
+
+    if (!driverId && !userId) {
       console.log(`[SOCKET] Cliente genérico conectado: SocketID=${socket.id}`);
     }
   }
@@ -53,8 +69,30 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Set offline state when disconnecting
       await this.redisService.setDriverAvailability(driverId, false);
       await this.redisService.removeDriverLocation(driverId);
-    } else {
+    }
+
+    const userId = this.socketToUserMap.get(socket.id);
+    if (userId) {
+      this.activeUserSockets.delete(userId);
+      this.socketToUserMap.delete(socket.id);
+      console.log(`[SOCKET] Usuario desconectado: ID=${userId}, SocketID=${socket.id}`);
+    }
+
+    if (!driverId && !userId) {
       console.log(`[SOCKET] Cliente genérico desconectado: SocketID=${socket.id}`);
+    }
+  }
+
+  // Handle subscription to team live locations
+  @SubscribeMessage('join_team')
+  async handleJoinTeam(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { teamId: string },
+  ) {
+    if (data.teamId) {
+      await socket.join(`team:${data.teamId}`);
+      console.log(`[SOCKET] Socket ${socket.id} se unió a la sala del equipo: team:${data.teamId}`);
+      socket.emit('team_joined', { teamId: data.teamId });
     }
   }
 
@@ -65,18 +103,26 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: GPSCoordinateDto,
   ) {
     const driverId = this.socketToDriverMap.get(socket.id);
-    if (!driverId) {
-      socket.emit('error', 'No autenticado como conductor.');
+    const userId = this.socketToUserMap.get(socket.id) || driverId;
+
+    if (!userId) {
+      socket.emit('error', 'No autenticado.');
       return;
     }
 
-    // Save location to Redis
-    await this.redisService.updateDriverLocation(driverId, data.latitude, data.longitude);
+    // Save location to Redis (for drivers & general users)
+    if (driverId) {
+      await this.redisService.updateDriverLocation(driverId, data.latitude, data.longitude);
+      this.dispatchService.registerDriverUpdate(driverId);
+      console.log(`[LOCATION] Ubicación de conductor ${driverId}: Lat=${data.latitude}, Lng=${data.longitude}`);
+    }
 
-    // Register active heartbeat
-    this.dispatchService.registerDriverUpdate(driverId);
+    // Cache generic user location
+    await this.redisService.updateUserLocation(userId, data.latitude, data.longitude);
 
-    console.log(`[LOCATION] Ubicación de conductor ${driverId}: Lat=${data.latitude}, Lng=${data.longitude}`);
+    // Broadcast location to team members if user belongs to a team and has location sharing enabled
+    await this.broadcastToTeam(userId, data.latitude, data.longitude);
+
     socket.emit('location_received', { status: 'ok', timestamp: new Date().toISOString() });
   }
 
@@ -87,8 +133,10 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: UpdateGPSBatchDto,
   ) {
     const driverId = this.socketToDriverMap.get(socket.id);
-    if (!driverId) {
-      socket.emit('error', 'No autenticado como conductor.');
+    const userId = this.socketToUserMap.get(socket.id) || driverId;
+
+    if (!userId) {
+      socket.emit('error', 'No autenticado.');
       return;
     }
 
@@ -97,22 +145,51 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
       return;
     }
 
-    // Sort coordinates chronologically just in case
+    // Sort coordinates chronologically
     const sortedCoords = [...data.coordinates].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
 
-    console.log(`[LOCATION_BATCH] Procesando lote de ${sortedCoords.length} coordenadas para conductor ${driverId}`);
+    console.log(`[LOCATION_BATCH] Procesando lote de ${sortedCoords.length} coordenadas para ID=${userId}`);
 
     for (const coord of sortedCoords) {
-      // Save location to Redis
-      await this.redisService.updateDriverLocation(driverId, coord.latitude, coord.longitude);
+      if (driverId) {
+        await this.redisService.updateDriverLocation(driverId, coord.latitude, coord.longitude);
+      }
+      await this.redisService.updateUserLocation(userId, coord.latitude, coord.longitude);
     }
 
-    // Register active heartbeat based on the latest coordinate update
-    this.dispatchService.registerDriverUpdate(driverId);
+    if (driverId) {
+      this.dispatchService.registerDriverUpdate(driverId);
+    }
+
+    // Broadcast the latest coordinate to the team
+    const latest = sortedCoords[sortedCoords.length - 1];
+    await this.broadcastToTeam(userId, latest.latitude, latest.longitude);
 
     socket.emit('batch_received', { status: 'ok', count: sortedCoords.length });
+  }
+
+  private async broadcastToTeam(userId: string, latitude: number, longitude: number) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, teamId: true, shareLocationWithTeam: true },
+      });
+
+      if (user && user.teamId && user.shareLocationWithTeam) {
+        // Broadcast location update to team room
+        this.server.to(`team:${user.teamId}`).emit('team_location_update', {
+          userId: user.id,
+          name: user.name,
+          latitude,
+          longitude,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.error('Error broadcasting team location:', err);
+    }
   }
 
   // Emits invitation to driver

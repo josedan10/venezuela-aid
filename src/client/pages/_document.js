@@ -12,6 +12,7 @@ export default function Document() {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#090d16" />
         <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <meta name="description" content="Plataforma de coordinación de ayuda humanitaria para Venezuela con soporte para uso offline en tránsito." />
       </Head>
       <body>

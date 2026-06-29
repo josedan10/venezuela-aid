@@ -2,7 +2,7 @@
   "name": "aid-venezuela-app",
   "version": "1.0.0",
   "description": "Humanitarian aid coordination app for Venezuela",
-  "main": "dist/src/backend/main.js",
+  "main": "dist/main.js",
   "scripts": {
     "test": "jest",
     "build:backend": "nest build",
@@ -11,7 +11,7 @@
     "start:backend": "nest start",
     "start:backend:dev": "nest start --watch",
     "start:frontend:dev": "next dev src/client",
-    "start:prod": "node dist/src/backend/main.js",
+    "start:prod": "node dist/main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed"
@@ -32,6 +32,7 @@
     "firebase": "^12.15.0",
     "firebase-admin": "^14.1.0",
     "ioredis": "^5.3.2",
+    "leaflet": "^1.9.4",
     "mysql2": "^3.9.2",
     "next": "^14.1.0",
     "passport": "^0.7.0",

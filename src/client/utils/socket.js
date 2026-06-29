@@ -12,16 +12,20 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:500
  * @param {object} callbacks - Event callbacks (onProposal, onConnect, onDisconnect, onConnectError)
  * @returns {object} The socket instance
  */
-export function initSocket(driverId, callbacks = {}) {
+export function initSocket(driverId, callbacks = {}, userId = null) {
   if (typeof window === 'undefined') return null;
 
   if (socket) {
     socket.disconnect();
   }
 
-  console.log(`[Socket] Conectando a ${BACKEND_URL} con driverId=${driverId}`);
+  const query = {};
+  if (driverId) query.driverId = driverId;
+  if (userId) query.userId = userId;
+
+  console.log(`[Socket] Conectando a ${BACKEND_URL} con query:`, query);
   socket = io(BACKEND_URL, {
-    query: { driverId },
+    query,
     transports: ['websocket'], // force websocket for stability
     reconnection: true,
     reconnectionAttempts: Infinity,

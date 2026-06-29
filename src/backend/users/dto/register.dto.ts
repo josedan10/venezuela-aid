@@ -1,6 +1,6 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Role } from '@prisma/client';
+import { Role } from '../role.enum';
 import { RegisterDriverDto } from './register-driver.dto';
 
 export class RegisterDto {
@@ -16,9 +16,9 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'El nombre es obligatorio.' })
   name: string;
 
-  @IsEnum(Role, { message: 'El rol especificado no es válido.' })
-  @IsNotEmpty({ message: 'El rol es obligatorio.' })
-  role: Role;
+  @IsString({ message: 'El campo roles debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El campo roles es obligatorio.' })
+  roles: string;
 
   @IsOptional()
   @IsString({ message: 'El RIF debe ser una cadena de texto.' })

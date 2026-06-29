@@ -49,4 +49,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const results = await this.client.georadius('drivers:locations', longitude, latitude, radiusKm, 'km');
     return results as string[];
   }
+
+  // General User Location Helpers
+  async updateUserLocation(userId: string, latitude: number, longitude: number): Promise<void> {
+    const key = `user:${userId}:location`;
+    await this.client.set(key, JSON.stringify({ latitude, longitude, updatedAt: new Date().toISOString() }));
+  }
+
+  async getUserLocation(userId: string): Promise<{ latitude: number, longitude: number, updatedAt: string } | null> {
+    const key = `user:${userId}:location`;
+    const val = await this.client.get(key);
+    if (!val) return null;
+    try {
+      return JSON.parse(val);
+    } catch {
+      return null;
+    }
+  }
 }

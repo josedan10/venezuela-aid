@@ -20,6 +20,12 @@ export class UsersController {
     };
   }
 
+  @UseGuards(FirebaseAuthGuard)
+  @Post('complete-driver-profile')
+  async completeDriverProfile(@Request() req: any, @Body() body: any) {
+    return this.usersService.completeDriverProfile(req.user.id, body);
+  }
+
   @Post('approve-driver/:id')
   async approveDriver(@Param('id') driverId: string) {
     return this.usersService.approveDriver(driverId);

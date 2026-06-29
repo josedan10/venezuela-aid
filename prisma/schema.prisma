@@ -21,16 +21,21 @@ enum DriverStatus {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  firebaseId    String         @unique
-  email         String         @unique
-  name          String
-  role          Role
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  driverDetails DriverDetails?
-  needsCreated  Need[]         @relation("NGONeeds")
-  dispatches    DispatchTask[] @relation("DriverDispatches")
+  id                String             @id @default(uuid())
+  firebaseId        String             @unique
+  email             String             @unique
+  name              String
+  roles             String             @default("DONOR") // Comma-separated roles: DONOR, NGO, DRIVER, ADMIN
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  driverDetails     DriverDetails?
+  needsCreated      Need[]             @relation("NGONeeds")
+  dispatches        DispatchTask[]     @relation("DriverDispatches")
+  collectionCenters CollectionCenter[] @relation("UserCollectionCenters")
+  teamId            String?
+  team              Team?              @relation("TeamMembers", fields: [teamId], references: [id])
+  createdTeams      Team[]             @relation("TeamCreator")
+  shareLocationWithTeam Boolean          @default(false)
 }
 
 model DriverDetails {
@@ -40,7 +45,7 @@ model DriverDetails {
   cedula         String       @unique
   vehicleDetails String
   licensePlate   String
-  licenseDocUrl  String
+  licenseDocUrl  String?
   status         DriverStatus @default(PENDING_APPROVAL)
   verifiedAt     DateTime?
 }
@@ -133,4 +138,29 @@ model DispatchTask {
   photoUrl     String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+}
+
+model CollectionCenter {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @db.Text
+  latitude    Float
+  longitude   Float
+  address     String?  @db.Text
+  services    String // Comma-separated list of services, e.g. "Comida,Medicina,Refugio"
+  createdById String?
+  createdBy   User?    @relation("UserCollectionCenters", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  creatorId   String
+  creator     User     @relation("TeamCreator", fields: [creatorId], references: [id])
+  members     User[]   @relation("TeamMembers")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

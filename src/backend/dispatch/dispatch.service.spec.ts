@@ -4,7 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { ResourcesService } from '../resources/resources.service';
 import { DispatchGateway } from './dispatch.gateway';
-import { DispatchStatus, NeedStatus, Role, DriverStatus, DispatchTask } from '@prisma/client';
+import { DispatchStatus, NeedStatus, DriverStatus, DispatchTask } from '@prisma/client';
+import { Role } from '../users/role.enum';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('DispatchService', () => {
@@ -234,7 +235,7 @@ describe('DispatchService', () => {
       mockRedisService.findNearbyDrivers.mockResolvedValueOnce(['driver-2']);
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'driver-2',
-        role: Role.DRIVER,
+        roles: 'DRIVER',
         driverDetails: { status: DriverStatus.VERIFIED },
       });
       mockRedisService.getDriverAvailability.mockResolvedValueOnce('Disponible');

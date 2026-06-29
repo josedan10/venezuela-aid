@@ -9,7 +9,8 @@ import { DispatchModule } from '../src/backend/dispatch/dispatch.module';
 import { PrismaService } from '../src/backend/prisma/prisma.service';
 import { RedisService } from '../src/backend/redis/redis.service';
 import { io, Socket } from 'socket.io-client';
-import { DispatchStatus, NeedStatus, Role, DriverStatus } from '@prisma/client';
+import { DispatchStatus, NeedStatus, DriverStatus } from '@prisma/client';
+import { Role } from '../src/backend/users/role.enum';
 import { DispatchService } from '../src/backend/dispatch/dispatch.service';
 import { ResourcesService } from '../src/backend/resources/resources.service';
 
@@ -44,6 +45,8 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
     findNearbyDrivers: jest.fn(),
     updateDriverLocation: jest.fn(),
     removeDriverLocation: jest.fn(),
+    updateUserLocation: jest.fn(),
+    getUserLocation: jest.fn(),
   };
 
   const mockPrismaService = {
@@ -145,7 +148,7 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
     mockRedisService.findNearbyDrivers.mockResolvedValueOnce([driverId]);
     mockPrismaService.user.findUnique.mockResolvedValueOnce({
       id: driverId,
-      role: Role.DRIVER,
+      roles: 'DRIVER',
       driverDetails: { status: DriverStatus.VERIFIED },
     });
     mockRedisService.getDriverAvailability.mockResolvedValueOnce('Disponible');

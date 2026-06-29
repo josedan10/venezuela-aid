@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import RegisterForm from '../components/RegisterForm';
 import ResourceCatalogForm from '../components/ResourceCatalogForm';
 import NeedSubmissionForm from '../components/NeedSubmissionForm';
+import dynamic from 'next/dynamic';
+
+const MapComponent = dynamic(() => import('../components/MapComponent'), { ssr: false });
 import { initSocket, sendLocation, disconnectSocket, syncBufferedCoordinates } from '../utils/socket';
 import { getBufferedCoordinates, hasBufferedCoordinates } from '../utils/indexeddb';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -12,8 +15,9 @@ import { useAuth } from '../context/AuthContext';
 export default function Home() {
   const { user: firebaseUser, dbUser, token: authToken, logout, setDbUser } = useAuth();
   const currentUser = dbUser;
-  const [activeTab, setActiveTab] = useState('donor'); // donor, ngo, driver, admin, register
-  
+  const [activeTab, setActiveTab] = useState('mapa_publico'); // mapa_publico, donor, ngo, driver, admin, register
+  const [showPanels, setShowPanels] = useState(true);
+
   // Login fields
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -30,7 +34,39 @@ export default function Home() {
   // Needs state
   const [needsQueue, setNeedsQueue] = useState([]);
 
-  // Driver state
+  // Collection Centers state
+  const [collectionCentersList, setCollectionCentersList] = useState([]);
+  const [mapClickLocation, setMapClickLocation] = useState(null);
+  const [registeringCenter, setRegisteringCenter] = useState(false);
+  const [centerName, setCenterName] = useState('');
+  const [centerDesc, setCenterDesc] = useState('');
+  const [centerAddress, setCenterAddress] = useState('');
+  const [centerServices, setCenterServices] = useState([]);
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false);
+  const [userGeolocation, setUserGeolocation] = useState(null);
+
+  // Panel minimize states
+  const [leftMinimized, setLeftMinimized] = useState(false);
+  const [rightMinimized, setRightMinimized] = useState(false);
+
+  // Teams state
+  const [availableTeams, setAvailableTeams] = useState([]);
+  const [myTeam, setMyTeam] = useState(null);
+  const [teamName, setTeamName] = useState('');
+  const [teamDesc, setTeamDesc] = useState('');
+  const [teamSharing, setTeamSharing] = useState(false);
+  const [mapStyle, setMapStyle] = useState('light'); // default to light style
+  const [selectedPoint, setSelectedPoint] = useState(null);
+
+  // Complete Driver Profile form fields
+  const [driverCedula, setDriverCedula] = useState('');
+  const [driverVehicle, setDriverVehicle] = useState('');
+  const [driverPlate, setDriverPlate] = useState('');
+  const [driverLicenseUrl, setDriverLicenseUrl] = useState('');
+  const [driverProfileMessage, setDriverProfileMessage] = useState('');
+  const [driverProfileError, setDriverProfileError] = useState('');
+
+  // Driver active tracking state
   const [driverAvailable, setDriverAvailable] = useState(false);
   const [driverStatusMessage, setDriverStatusMessage] = useState('');
   const [activeProposal, setActiveProposal] = useState(null);
@@ -50,6 +86,24 @@ export default function Home() {
   const [deliveryMessage, setDeliveryMessage] = useState('');
 
   const countdownIntervalRef = useRef(null);
+
+  // Fetch updated profile
+  const fetchProfile = async () => {
+    if (!authToken) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDbUser(data.user);
+      }
+    } catch (e) {
+      console.error('Error refreshing profile:', e);
+    }
+  };
 
   // Refresh lists
   const refreshResources = async () => {
@@ -76,16 +130,22 @@ export default function Home() {
     }
   };
 
-  const fetchPendingDrivers = async () => {
-    // In a real app we'd query /users with filters. Here we can use standard DB querying mock or seed simulation
-    // Let's query db or mock it.
-    // For demo purposes, we will mock pending drivers but try to get details if possible.
+  const refreshCollectionCenters = async () => {
     try {
-      // Create simple list from seed or backend if we can search.
-      // Alternatively, let's fetch custom list of drivers if any registered.
-      // We can mock it for the administrator UI.
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/collection-centers`);
+      if (res.ok) {
+        const data = await res.json();
+        setCollectionCentersList(data);
+      }
+    } catch (e) {
+      console.error('Error refreshing collection centers:', e);
+    }
+  };
+
+  const fetchPendingDrivers = async () => {
+    try {
       const mockDrivers = [
-        { id: '1', name: 'Carlos Mendoza', email: 'carlos@conductor.com', role: 'DRIVER', driverDetails: { status: 'PENDING_APPROVAL', cedula: 'V-15894125', vehicleDetails: 'Camioneta Toyota Hilux azul', licensePlate: 'AE123XX' } }
+        { id: 'seed-driver-maria-uid', name: 'María Rodríguez', email: 'conductor.maria@gmail.com', roles: 'DRIVER', driverDetails: { status: 'PENDING_APPROVAL', cedula: 'V-87654321', vehicleDetails: 'Chevrolet Silverado, Color Gris', licensePlate: 'XYZ98W', licenseDocUrl: 'https://storage.googleapis.com/ve-aid-licenses/v87654321.pdf' } }
       ];
       setPendingDrivers(mockDrivers);
     } catch (e) {
@@ -97,6 +157,7 @@ export default function Home() {
   useEffect(() => {
     refreshResources();
     refreshNeeds();
+    refreshCollectionCenters();
     if (activeTab === 'admin') {
       fetchPendingDrivers();
     }
@@ -110,7 +171,6 @@ export default function Home() {
           if (prev <= 1) {
             clearInterval(countdownIntervalRef.current);
             setActiveProposal(null);
-            // Re-fetch to see updated status
             refreshNeeds();
             return 0;
           }
@@ -128,6 +188,25 @@ export default function Home() {
     };
   }, [gpsIntervalId]);
 
+  // Request browser geolocation on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('[Geolocation] Location obtained:', position.coords.latitude, position.coords.longitude);
+          setUserGeolocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.warn('[Geolocation] Error fetching browser geolocation:', error);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }, []);
+
   // Sync offline coordinates regularly
   useEffect(() => {
     let interval = null;
@@ -137,7 +216,6 @@ export default function Home() {
         if (hasOffline) {
           console.log('[Offline Sync] Syncing buffered coordinates...');
           await syncBufferedCoordinates();
-          // Update count
           const coords = await getBufferedCoordinates();
           setOfflineCount(coords.length);
         }
@@ -148,18 +226,21 @@ export default function Home() {
     };
   }, [offlineSimulation]);
 
+  // Handle auto-routing tabs on login
   useEffect(() => {
     if (dbUser) {
-      if (dbUser.role === 'DRIVER') {
-        setActiveTab('driver');
-        initDriverSockets(dbUser.id);
-      } else if (dbUser.role === 'NGO') {
-        setActiveTab('ngo');
-      } else if (dbUser.role === 'DONOR') {
-        setActiveTab('donor');
-      } else if (dbUser.role === 'ADMIN') {
+      const userRoles = dbUser.roles.split(',');
+      if (userRoles.includes('ADMIN')) {
         setActiveTab('admin');
+      } else if (userRoles.includes('NGO')) {
+        setActiveTab('ngo');
+      } else if (userRoles.includes('DRIVER')) {
+        setActiveTab('driver');
+      } else if (userRoles.includes('DONOR')) {
+        setActiveTab('donor');
       }
+    } else {
+      setActiveTab('mapa_publico');
     }
   }, [dbUser]);
 
@@ -171,8 +252,6 @@ export default function Home() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       setLoginSuccess('Sesión iniciada correctamente.');
-      
-      // Reset login form
       setLoginEmail('');
       setLoginPassword('');
     } catch (err) {
@@ -181,10 +260,10 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
-    if (currentUser && currentUser.role === 'DRIVER') {
+    if (currentUser && currentUser.roles.split(',').includes('DRIVER')) {
       stopGPSTracking();
-      disconnectSocket();
     }
+    disconnectSocket();
     await logout();
     setDriverAvailable(false);
     setDriverStatusMessage('');
@@ -192,30 +271,241 @@ export default function Home() {
     setActiveTask(null);
     setOfflineSimulation(false);
     setOfflineCount(0);
+    setMyTeam(null);
+    setTeamSharing(false);
+    setActiveTab('mapa_publico');
   };
 
-  // Socket triggers for driver
-  const initDriverSockets = (driverId) => {
-    initSocket(driverId, {
-      onProposal: (payload) => {
-        setActiveProposal(payload);
-        setProposalCountdown(payload.timeoutSeconds || 60);
-      },
-      onConnect: async () => {
-        console.log('Socket client connected.');
-        // Update count of offline
-        const coords = await getBufferedCoordinates();
-        setOfflineCount(coords.length);
-      },
-      onDisconnect: () => {
-        console.log('Socket client disconnected.');
+  const fetchMyTeamDetails = async () => {
+    if (!authToken) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/teams/my-team`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyTeam(data);
+        if (data.inTeam) {
+          setTeamSharing(data.shareLocationWithTeam);
+        }
       }
-    });
+    } catch (e) {
+      console.error('Error fetching team details:', e);
+    }
   };
 
-  // Toggle availability
+  const fetchAvailableTeams = async () => {
+    if (!authToken) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/teams`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableTeams(data);
+      }
+    } catch (e) {
+      console.error('Error fetching available teams:', e);
+    }
+  };
+
+  const handleCreateTeam = async (e) => {
+    e.preventDefault();
+    if (!teamName) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/teams`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ name: teamName, description: teamDesc }),
+      });
+      if (res.ok) {
+        setTeamName('');
+        setTeamDesc('');
+        await fetchMyTeamDetails();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Error al crear el equipo.');
+      }
+    } catch (err) {
+      console.error('Error creating team:', err);
+    }
+  };
+
+  const handleJoinTeam = async (teamId) => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/teams/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ teamId }),
+      });
+      if (res.ok) {
+        await fetchMyTeamDetails();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Error al unirse al equipo.');
+      }
+    } catch (err) {
+      console.error('Error joining team:', err);
+    }
+  };
+
+  const handleLeaveTeam = async () => {
+    if (!confirm('¿Estás seguro de que quieres salir de este equipo?')) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/teams/leave`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      if (res.ok) {
+        setMyTeam(null);
+        setTeamSharing(false);
+        await fetchAvailableTeams();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Error al salir del equipo.');
+      }
+    } catch (err) {
+      console.error('Error leaving team:', err);
+    }
+  };
+
+  const handleToggleSharing = async (e) => {
+    const val = e.target.checked;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/teams/toggle-sharing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ share: val }),
+      });
+      if (res.ok) {
+        setTeamSharing(val);
+        await fetchMyTeamDetails();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Error al actualizar preferencia de ubicación.');
+      }
+    } catch (err) {
+      console.error('Error toggling location sharing:', err);
+    }
+  };
+
+  // Unified Socket.io connection & listener hook
+  useEffect(() => {
+    if (currentUser && authToken) {
+      const isDriver = currentUser.roles.split(',').includes('DRIVER');
+      const socketInstance = initSocket(
+        isDriver ? currentUser.id : null,
+        {
+          onProposal: (payload) => {
+            setActiveProposal(payload);
+            setProposalCountdown(payload.timeoutSeconds || 60);
+          },
+          onConnect: async () => {
+            console.log('[Socket] Conectado al servidor.');
+            if (myTeam?.inTeam) {
+              socketInstance.emit('join_team', { teamId: myTeam.team.id });
+            }
+            const coords = await getBufferedCoordinates();
+            setOfflineCount(coords.length);
+          },
+          onDisconnect: () => {
+            console.log('[Socket] Desconectado.');
+          }
+        },
+        currentUser.id
+      );
+
+      socketInstance.on('team_location_update', (data) => {
+        console.log('[Team Socket] Recibida actualización de ubicación de miembro:', data);
+        setMyTeam((prev) => {
+          if (!prev || !prev.inTeam) return prev;
+          const updatedMembers = prev.team.members.map((m) => {
+            if (m.id === data.userId) {
+              return {
+                ...m,
+                location: {
+                  latitude: data.latitude,
+                  longitude: data.longitude,
+                  updatedAt: data.timestamp,
+                },
+              };
+            }
+            return m;
+          });
+          return {
+            ...prev,
+            team: {
+              ...prev.team,
+              members: updatedMembers,
+            },
+          };
+        });
+      });
+
+      return () => {
+        disconnectSocket();
+      };
+    }
+  }, [currentUser, authToken, myTeam?.team?.id]);
+
+  // Geolocation sharing push hook
+  useEffect(() => {
+    let interval = null;
+    if (currentUser && myTeam?.inTeam && teamSharing && !offlineSimulation) {
+      console.log('[Team GPS] Iniciando envío periódico de ubicación...');
+      if (userGeolocation) {
+        sendLocation(null, userGeolocation.lat, userGeolocation.lng);
+      }
+
+      interval = setInterval(() => {
+        if (typeof window !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition((pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            setUserGeolocation({ lat, lng });
+            sendLocation(null, lat, lng);
+          });
+        }
+      }, 15000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentUser, myTeam?.inTeam, teamSharing, userGeolocation, offlineSimulation]);
+
+  // Fetch available teams and details when token is available
+  useEffect(() => {
+    if (authToken) {
+      fetchMyTeamDetails();
+      fetchAvailableTeams();
+    }
+  }, [authToken]);
+
+  // Fetch details on activeTab Change
+  useEffect(() => {
+    if (activeTab === 'equipos' && authToken) {
+      fetchMyTeamDetails();
+      fetchAvailableTeams();
+    }
+  }, [activeTab, authToken]);
+
   const toggleAvailability = async () => {
-    if (!currentUser || currentUser.role !== 'DRIVER') return;
+    if (!currentUser || !currentUser.roles.split(',').includes('DRIVER')) return;
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/toggle-availability`, {
@@ -243,7 +533,6 @@ export default function Home() {
     }
   };
 
-  // Driver task actions
   const handleAcceptProposal = async () => {
     if (!activeProposal || !currentUser) return;
     
@@ -268,7 +557,6 @@ export default function Home() {
       setActiveTask(data.task);
       setActiveProposal(null);
       
-      // Start real-time GPS coordinates stream
       startGPSTracking();
       refreshNeeds();
     } catch (err) {
@@ -306,18 +594,14 @@ export default function Home() {
     }
   };
 
-  // Simulates GPS updates every 15 seconds
   const startGPSTracking = () => {
     if (gpsIntervalId) clearInterval(gpsIntervalId);
 
     console.log('[GPS] Iniciando rastreo de coordenadas...');
-    
-    // Initial coordinates centered at Caracas
     let lat = 10.5186;
     let lng = -66.9503;
 
     const intervalId = setInterval(async () => {
-      // Simulate minor movements
       lat += (Math.random() - 0.5) * 0.002;
       lng += (Math.random() - 0.5) * 0.002;
 
@@ -327,19 +611,17 @@ export default function Home() {
       const timestamp = new Date().toLocaleTimeString();
       setLocationLog((prev) => [
         { lat, lng, time: timestamp, status: offlineSimulation ? 'Buffered (Offline)' : 'Sent (Online)' },
-        ...prev.slice(0, 19), // keep last 20 logs
+        ...prev.slice(0, 19),
       ]);
 
       try {
         await sendLocation(currentUser.id, lat, lng);
-        
-        // Count update
         const coords = await getBufferedCoordinates();
         setOfflineCount(coords.length);
       } catch (e) {
         console.error('Error sending GPS log:', e);
       }
-    }, 15000); // 15 seconds required by spec
+    }, 15000);
 
     setGpsIntervalId(intervalId);
   };
@@ -351,21 +633,17 @@ export default function Home() {
     }
   };
 
-  // Toggle offline simulation
   const toggleOfflineSimulation = () => {
     const nextOfflineState = !offlineSimulation;
     setOfflineSimulation(nextOfflineState);
 
     if (nextOfflineState) {
-      // Disconnect socket to simulate cellular network loss
       disconnectSocket();
       console.warn('[Network Simulator] Modo Fuera de Línea Activado. El socket se desconectó.');
     } else {
-      // Reconnect socket and sync buffered coordinates batch
       console.log('[Network Simulator] Conexión de Red Restablecida. Conectando socket...');
       if (currentUser) {
         initDriverSockets(currentUser.id);
-        // We also explicitly call sync after connection or let socket connect callback trigger it
         setTimeout(async () => {
           await syncBufferedCoordinates();
           const coords = await getBufferedCoordinates();
@@ -375,7 +653,6 @@ export default function Home() {
     }
   };
 
-  // Confirm delivery
   const handleConfirmDelivery = async (e) => {
     e.preventDefault();
     setDeliveryError('');
@@ -419,7 +696,6 @@ export default function Home() {
     }
   };
 
-  // Admin operations
   const handleApproveDriver = async (driverId) => {
     setAdminMessage('');
     try {
@@ -461,564 +737,1257 @@ export default function Home() {
     }
   };
 
+  // Complete driver profile submit
+  const handleCompleteDriverProfile = async (e) => {
+    e.preventDefault();
+    setDriverProfileError('');
+    setDriverProfileMessage('');
+
+    if (!driverCedula || !driverVehicle || !driverPlate) {
+      setDriverProfileError('La cédula, descripción del vehículo y la placa son obligatorios.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/complete-driver-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          cedula: driverCedula,
+          vehicleDetails: driverVehicle,
+          licensePlate: driverPlate.toUpperCase(),
+          licenseDocUrl: driverLicenseUrl || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al actualizar perfil de conductor');
+      }
+
+      setDriverProfileMessage(data.message || 'Perfil de conductor actualizado con éxito.');
+      await fetchProfile(); // Update local dbUser in Context
+    } catch (err) {
+      setDriverProfileError(err.message);
+    }
+  };
+
+  // Handle map click to capture coordinates
+  const handleMapClick = useCallback((lat, lng) => {
+    setMapClickLocation({ lat, lng });
+    setRegisteringCenter(true);
+    setIsSelectingLocation(false); // Turn off selection mode once clicked
+  }, []);
+
+  // Handle map point click selection
+  const handlePointClick = useCallback((point) => {
+    setSelectedPoint(point);
+    setLeftMinimized(false);
+  }, []);
+
+  // Register collection center submit
+  const handleRegisterCenter = async (e) => {
+    e.preventDefault();
+    if (!centerName || !centerDesc || centerServices.length === 0) {
+      alert('Por favor completa los campos obligatorios del centro de acopio.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/collection-centers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          name: centerName,
+          description: centerDesc,
+          latitude: mapClickLocation.lat,
+          longitude: mapClickLocation.lng,
+          address: centerAddress,
+          services: centerServices.join(','),
+        }),
+      });
+
+      if (response.ok) {
+        alert('Centro de acopio registrado correctamente en el mapa.');
+        setRegisteringCenter(false);
+        setMapClickLocation(null);
+        setCenterName('');
+        setCenterDesc('');
+        setCenterAddress('');
+        setCenterServices([]);
+        refreshCollectionCenters();
+      } else {
+        const errData = await response.json();
+        alert(`Error: ${errData.message || 'No se pudo guardar el centro de acopio.'}`);
+      }
+    } catch (err) {
+      alert(`Error de conexión: ${err.message}`);
+    }
+  };
+
+  const handleServiceCheckbox = (service) => {
+    setCenterServices(prev => 
+      prev.includes(service) ? prev.filter(s => s !== service) : [...prev, service]
+    );
+  };
+
+  const userRoles = currentUser ? currentUser.roles.split(',') : [];
+
   return (
     <div className="home-wrapper">
       <Head>
-        <title>AyudaVenezuela - Panel Principal SPA</title>
+        <title>AyudaVenezuela - Plataforma de Auxilio y Centros de Acopio</title>
       </Head>
 
-      {/* Hero Welcome banner */}
-      <div className="hero-banner glass animate-fade-in">
-        <h1>Coordinación Humanitaria de Emergencia</h1>
-        <p>Distribución de alimentos, medicinas y apoyo logístico en zonas rurales e intermitentes.</p>
-        
-        {currentUser ? (
-          <div className="user-info-card">
-            <span>Sesión activa: <strong>{currentUser.name}</strong> ({currentUser.role})</span>
-            <button onClick={handleLogout} className="logout-btn">Cerrar Sesión</button>
-          </div>
-        ) : (
-          <div className="guest-banner-msg">Regístrese o inicie sesión para registrar aportes o solicitar insumos.</div>
-        )}
-      </div>
+      {/* FULL VIEW MAP RENDERED IN THE BACKGROUND */}
+      <MapComponent
+        needs={needsQueue}
+        collectionCenters={collectionCentersList}
+        driverLocation={currentUser && userRoles.includes('DRIVER') ? { lat: driverLat, lng: driverLng } : null}
+        userGeolocation={userGeolocation}
+        teamMembers={myTeam?.inTeam ? myTeam.team.members : []}
+        currentUser={currentUser}
+        activeTask={activeTask}
+        onMapClick={isSelectingLocation ? handleMapClick : null}
+        mapStyle={mapStyle}
+        onPointClick={handlePointClick}
+      />
 
-      {/* Main Grid: Forms and views */}
-      <div className="main-content-grid">
+      {/* FLOATING ACTION OVERLAY CONTROLLER */}
+      <div className="floating-ui-container">
         
-        {/* Left Side: Forms / Dashboard Panels depending on active tab */}
-        <div className="dashboard-forms-column animate-slide-up">
+        {/* Bottom controls panel holding the UI toggler and Map Style selector */}
+        <div className="bottom-controls-bar glass animate-fade-in">
+          <button 
+            className="toggle-ui-btn"
+            onClick={() => setShowPanels(!showPanels)}
+            title={showPanels ? "Ocultar Paneles de Datos" : "Mostrar Paneles de Datos"}
+          >
+            {showPanels ? 'Ocultar UI ✕' : 'Mostrar Control UI 👁️'}
+          </button>
           
-          {/* Navigation Tabs */}
-          <div className="nav-tabs glass">
-            <button
-              onClick={() => setActiveTab('donor')}
-              className={activeTab === 'donor' ? 'tab-btn active' : 'tab-btn'}
+          <div className="map-style-selector">
+            <span className="style-label">Mapa:</span>
+            <select
+              value={mapStyle}
+              onChange={(e) => setMapStyle(e.target.value)}
+              className="map-style-select"
             >
-              Donantes
-            </button>
-            <button
-              onClick={() => setActiveTab('ngo')}
-              className={activeTab === 'ngo' ? 'tab-btn active' : 'tab-btn'}
-            >
-              ONGs
-            </button>
-            <button
-              onClick={() => setActiveTab('driver')}
-              className={activeTab === 'driver' ? 'tab-btn active' : 'tab-btn'}
-            >
-              Conductores
-            </button>
-            <button
-              onClick={() => setActiveTab('admin')}
-              className={activeTab === 'admin' ? 'tab-btn active' : 'tab-btn'}
-            >
-              Administrador
-            </button>
-            {!currentUser && (
-              <button
-                onClick={() => setActiveTab('register')}
-                className={activeTab === 'register' ? 'tab-btn register-tab active' : 'tab-btn register-tab'}
-              >
-                Registrarse
-              </button>
-            )}
+              <option value="light">Claro ☀️</option>
+              <option value="dark">Oscuro 🌙</option>
+              <option value="classic">Estándar 🗺️</option>
+              <option value="satellite">Satélite 🛰️</option>
+            </select>
           </div>
+        </div>
 
-          {/* REGISTER TAB */}
-          {activeTab === 'register' && !currentUser && (
-            <RegisterForm onRegisterSuccess={() => setActiveTab('donor')} />
-          )}
-
-          {/* DONOR DASHBOARD */}
-          {activeTab === 'donor' && (
-            <div className="tab-pane">
-              {currentUser && currentUser.role === 'DONOR' ? (
-                <div className="dashboard-inner">
-                  <div className="welcome-badge">Panel de Donantes</div>
-                  <ResourceCatalogForm token={authToken} onResourceCataloged={refreshResources} />
+        {showPanels && (
+          <div className="panels-layout-wrapper">
+            
+            {/* FLOATING HEADER: Brand Logo and Login/Logout status */}
+            <div className="floating-header glass animate-fade-in">
+              <div className="brand-box">
+                <span className="brand-logo">🇻🇪</span>
+                <div className="brand-text">
+                  <h2>AyudaVenezuela</h2>
+                  <p>Coordinación Humanitaria de Emergencia</p>
+                </div>
+              </div>
+              
+              {currentUser ? (
+                <div className="header-session-info">
+                  <span>Conectado: <strong>{currentUser.name}</strong></span>
+                  <button onClick={handleLogout} className="logout-btn">Salir</button>
                 </div>
               ) : (
-                <div className="auth-required-card glass">
-                  <h3>Acceso Limitado a Donantes</h3>
-                  <p>Inicie sesión con su cuenta de Donante para catalogar y registrar aportes.</p>
-                  {!currentUser && renderLoginForm()}
-                </div>
+                <span className="guest-badge">Modo Invitado / Observador</span>
               )}
             </div>
-          )}
 
-          {/* NGO DASHBOARD */}
-          {activeTab === 'ngo' && (
-            <div className="tab-pane">
-              {currentUser && currentUser.role === 'NGO' ? (
-                <div className="dashboard-inner">
-                  <div className="welcome-badge">Panel de ONGs / Solicitudes</div>
-                  <NeedSubmissionForm token={authToken} onNeedSubmitted={refreshNeeds} />
+            {/* TWO FLOATING COLUMNS OVER THE MAP */}
+            <div className="floating-body-columns">
+              
+              {/* LEFT COLUMN: Navigation & Dynamic tab forms */}
+              <div className={`column-panel left-panel animate-slide-up ${leftMinimized ? 'minimized' : ''}`}>
+                <div className="panel-header-minimize">
+                  <span>{leftMinimized ? '📁 Panel de Control' : ''}</span>
+                  <button 
+                    className="minimize-panel-btn" 
+                    onClick={() => setLeftMinimized(!leftMinimized)}
+                    title={leftMinimized ? "Maximizar Panel" : "Minimizar Panel"}
+                  >
+                    {leftMinimized ? '➕' : '➖'}
+                  </button>
                 </div>
-              ) : (
-                <div className="auth-required-card glass">
-                  <h3>Acceso Limitado a ONGs</h3>
-                  <p>Inicie sesión con su cuenta de ONG / Beneficiario para crear solicitudes de insumos.</p>
-                  {!currentUser && renderLoginForm()}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* DRIVER DASHBOARD */}
-          {activeTab === 'driver' && (
-            <div className="tab-pane">
-              {currentUser && currentUser.role === 'DRIVER' ? (
-                <div className="dashboard-inner driver-dashboard-grid">
-                  
-                  {/* Account state banner */}
-                  <div className="driver-status-card glass">
-                    <div className="driver-header">
-                      <h3>Mi Cuenta de Conductor</h3>
-                      <span className={`status-badge ${currentUser.status}`}>
-                        {currentUser.status === 'VERIFIED' ? 'Verificado' : 'Pendiente de Aprobación'}
+                {selectedPoint && !leftMinimized && (
+                  <div className="selected-point-details-card glass animate-fade-in">
+                    <div className="card-header">
+                      <span className="point-type-badge">
+                        {selectedPoint.type === 'center' ? '🏠 Centro de Acopio' : '🚨 Necesidad'}
                       </span>
+                      <button onClick={() => setSelectedPoint(null)} className="close-point-btn" title="Cerrar detalles">✕</button>
                     </div>
 
-                    {currentUser.status !== 'VERIFIED' ? (
-                      <div className="alert alert-warning margin-top">
-                        Su documentación de conducir está en revisión por un administrador. No puede recibir propuestas hasta ser verificado.
+                    <div className="card-body">
+                      {selectedPoint.type === 'center' ? (
+                        <>
+                          <h3>{selectedPoint.data.name}</h3>
+                          <p className="point-desc"><strong>Servicios:</strong> {selectedPoint.data.services}</p>
+                          {selectedPoint.data.address && (
+                            <p className="point-desc"><strong>Dirección:</strong> {selectedPoint.data.address}</p>
+                          )}
+                          <p className="point-desc"><strong>Descripción:</strong> {selectedPoint.data.description}</p>
+                          <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
+                          
+                          {currentUser && userRoles.includes('NGO') && (
+                            <button
+                              onClick={() => {
+                                // Pre-fill need creation form coordinates
+                                setNeedLat(selectedPoint.data.latitude);
+                                setNeedLng(selectedPoint.data.longitude);
+                                setNeedState(selectedPoint.data.address?.split(',')[0] || '');
+                                setActiveTab('need');
+                              }}
+                              className="point-action-btn"
+                            >
+                              ✍️ Crear Solicitud Aquí
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <h3>{selectedPoint.data.state} - {selectedPoint.data.sector}</h3>
+                          <p className="point-desc"><strong>Descripción:</strong> {selectedPoint.data.description}</p>
+                          <div className="point-meta-row">
+                            <span className={`point-urgency-badge ${selectedPoint.data.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                              Urgencia: {selectedPoint.data.urgencyScore}
+                            </span>
+                            <span className="point-status-badge">
+                              {selectedPoint.data.status === 'PENDING' ? 'Pendiente' : selectedPoint.data.status === 'ALLOCATED' ? 'Asignado' : 'Entregado'}
+                            </span>
+                          </div>
+                          <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
+
+                          {currentUser && userRoles.includes('ADMIN') && selectedPoint.data.status === 'PENDING' && (
+                            <button
+                              onClick={() => handleProposeDispatch(selectedPoint.data.id)}
+                              className="point-action-btn dispatch-action"
+                            >
+                              ⚡ Asignar Conductor Cercano
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!leftMinimized && (
+                  <>
+                    {/* Navigation Tabs */}
+                    <div className="nav-tabs glass">
+                      <button
+                        onClick={() => setActiveTab('mapa_publico')}
+                        className={activeTab === 'mapa_publico' ? 'tab-btn active' : 'tab-btn'}
+                      >
+                        Inicio
+                      </button>
+                      {(!currentUser || userRoles.includes('DONOR')) && (
+                        <button
+                          onClick={() => setActiveTab('donor')}
+                          className={activeTab === 'donor' ? 'tab-btn active' : 'tab-btn'}
+                        >
+                          Donantes
+                        </button>
+                      )}
+                      {(!currentUser || userRoles.includes('NGO')) && (
+                        <button
+                          onClick={() => setActiveTab('ngo')}
+                          className={activeTab === 'ngo' ? 'tab-btn active' : 'tab-btn'}
+                        >
+                          ONGs
+                        </button>
+                      )}
+                      {(!currentUser || userRoles.includes('DRIVER')) && (
+                        <button
+                          onClick={() => setActiveTab('driver')}
+                          className={activeTab === 'driver' ? 'tab-btn active' : 'tab-btn'}
+                        >
+                          Conductores
+                        </button>
+                      )}
+                      {(!currentUser || userRoles.includes('ADMIN')) && (
+                        <button
+                          onClick={() => setActiveTab('admin')}
+                          className={activeTab === 'admin' ? 'tab-btn active' : 'tab-btn'}
+                        >
+                          Admin
+                        </button>
+                      )}
+                      {currentUser && (
+                        <button
+                          onClick={() => setActiveTab('equipos')}
+                          className={activeTab === 'equipos' ? 'tab-btn active' : 'tab-btn'}
+                        >
+                          Equipos
+                        </button>
+                      )}
+                      {!currentUser && (
+                        <button
+                          onClick={() => setActiveTab('register')}
+                          className={activeTab === 'register' ? 'tab-btn register-tab active' : 'tab-btn register-tab'}
+                        >
+                          Registrarse
+                        </button>
+                      )}
+                    </div>
+
+                {/* MAP INSTRUCTIONS TAB (LANDING VIEW) */}
+                {activeTab === 'mapa_publico' && (
+                  <div className="tab-pane-content glass-card">
+                    <div className="welcome-badge">Panel Informativo</div>
+                    <p className="panel-text">
+                      Estás visualizando el mapa nacional de ayuda en tiempo real.
+                    </p>
+                    <div className="legend-box">
+                      <div className="legend-item"><span className="dot red"></span><span>Emergencia Inmediata</span></div>
+                      <div className="legend-item"><span className="dot blue"></span><span>Necesidad Normal</span></div>
+                      <div className="legend-item"><span className="dot orange"></span><span>Centro de Acopio (🏠)</span></div>
+                      <div className="legend-item"><span className="dot cyan"></span><span>Mi Ubicación Actual (👤)</span></div>
+                    </div>
+
+                    <button
+                      className={`register-center-trigger-btn ${isSelectingLocation ? 'active' : ''}`}
+                      onClick={() => setIsSelectingLocation(!isSelectingLocation)}
+                    >
+                      {isSelectingLocation ? '✕ Cancelar Registro' : '📍 Registrar Centro de Acopio'}
+                    </button>
+
+                    <p className="panel-text-small text-orange" style={{ marginTop: '12px' }}>
+                      {isSelectingLocation 
+                        ? '👉 Ahora haz clic sobre cualquier punto del mapa para ubicar el centro.' 
+                        : '💡 Presiona el botón de arriba y luego haz clic en el mapa para registrar un nuevo centro de acopio.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* REGISTER TAB */}
+                {activeTab === 'register' && !currentUser && (
+                  <RegisterForm onRegisterSuccess={() => setActiveTab('donor')} />
+                )}
+
+                {/* DONOR DASHBOARD */}
+                {activeTab === 'donor' && (
+                  <div className="tab-pane-content">
+                    {currentUser && userRoles.includes('DONOR') ? (
+                      <div className="glass-card">
+                        <div className="welcome-badge">Aportar Recursos</div>
+                        <ResourceCatalogForm token={authToken} onResourceCataloged={refreshResources} />
                       </div>
                     ) : (
-                      <>
-                        <div className="availability-toggle-section">
-                          <p>
-                            Estado Actual: {' '}
-                            <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
-                              {driverAvailable ? 'DISPONIBLE PARA DESPACHOS' : 'NO DISPONIBLE'}
-                            </strong>
-                          </p>
-                          <button
-                            onClick={toggleAvailability}
-                            className={`toggle-btn ${driverAvailable ? 'online' : 'offline'}`}
-                          >
-                            {driverAvailable ? 'Desconectarse' : 'Conectarse (Disponible)'}
-                          </button>
-                        </div>
-                        {driverStatusMessage && <div className="status-msg">{driverStatusMessage}</div>}
+                      <div className="auth-required-card glass-card">
+                        <h3>Acceso Limitado a Donantes</h3>
+                        <p>Inicie sesión con su cuenta de Donante para catalogar y registrar aportes.</p>
+                        {!currentUser && renderLoginForm()}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                        {/* Network Loss Simulator */}
-                        <div className="network-simulator-card">
-                          <div className="network-sim-header">
-                            <span>Simulador de Red Celular (Prueba Offline)</span>
-                            <span className={`network-status ${offlineSimulation ? 'offline' : 'online'}`}>
-                              {offlineSimulation ? '🔴 SIN SEÑAL' : '🟢 CON SEÑAL'}
-                            </span>
+                {/* NGO DASHBOARD */}
+                {activeTab === 'ngo' && (
+                  <div className="tab-pane-content">
+                    {currentUser && userRoles.includes('NGO') ? (
+                      <div className="glass-card">
+                        <div className="welcome-badge">Solicitar Insumos</div>
+                        <NeedSubmissionForm token={authToken} onNeedSubmitted={refreshNeeds} />
+                      </div>
+                    ) : (
+                      <div className="auth-required-card glass-card">
+                        <h3>Acceso Limitado a ONGs</h3>
+                        <p>Inicie sesión con su cuenta de ONG / Beneficiario para crear solicitudes de insumos.</p>
+                        {!currentUser && renderLoginForm()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* DRIVER DASHBOARD */}
+                {activeTab === 'driver' && (
+                  <div className="tab-pane-content">
+                    {currentUser && userRoles.includes('DRIVER') ? (
+                      <div className="driver-dashboard-grid">
+                        
+                        {/* Account state banner */}
+                        <div className="driver-status-card glass-card">
+                          <div className="driver-header">
+                            <h3>Mi Perfil de Conductor</h3>
+                            {currentUser.driverDetails ? (
+                              <span className={`status-badge ${currentUser.driverDetails.status}`}>
+                                {currentUser.driverDetails.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'}
+                              </span>
+                            ) : (
+                              <span className="status-badge PENDING_APPROVAL">Incompleto</span>
+                            )}
                           </div>
-                          <p className="network-sim-desc">
-                            Simule la pérdida de señal celular en carreteras de Venezuela. Las coordenadas GPS en tránsito se guardarán en IndexedDB y se subirán juntas cuando reactive la red.
-                          </p>
-                          <button
-                            onClick={toggleOfflineSimulation}
-                            className={`network-toggle-btn ${offlineSimulation ? 'reconnect' : 'disconnect'}`}
-                          >
-                            {offlineSimulation ? 'Restablecer Red (Sincronizar)' : 'Cortar Red (Simular Desconexión)'}
-                          </button>
-                          {offlineCount > 0 && (
-                            <div className="offline-buffer-badge">
-                              ⚠️ {offlineCount} coordenadas en cola local (IndexedDB) esperando señal...
+
+                          {!currentUser.driverDetails ? (
+                            <div className="complete-profile-form-box">
+                              <div className="alert alert-warning">
+                                Completa tus datos de vehículo y placa para poder conectarte y recibir asignaciones.
+                              </div>
+
+                              <form onSubmit={handleCompleteDriverProfile} className="complete-profile-form">
+                                <div className="input-group">
+                                  <label htmlFor="drv-cedula">Cédula de Identidad *</label>
+                                  <input
+                                    id="drv-cedula"
+                                    type="text"
+                                    placeholder="Ej. V-12345678"
+                                    value={driverCedula}
+                                    onChange={(e) => setDriverCedula(e.target.value)}
+                                    required
+                                  />
+                                </div>
+
+                                <div className="input-group">
+                                  <label htmlFor="drv-vehicle">Descripción del Vehículo *</label>
+                                  <input
+                                    id="drv-vehicle"
+                                    type="text"
+                                    placeholder="Ej. Camión Hilux Blanco 4x4"
+                                    value={driverVehicle}
+                                    onChange={(e) => setDriverVehicle(e.target.value)}
+                                    required
+                                  />
+                                </div>
+
+                                <div className="input-group">
+                                  <label htmlFor="drv-plate">Placa del Vehículo *</label>
+                                  <input
+                                    id="drv-plate"
+                                    type="text"
+                                    placeholder="Ej. AA123BB"
+                                    value={driverPlate}
+                                    onChange={(e) => setDriverPlate(e.target.value)}
+                                    required
+                                  />
+                                </div>
+
+                                <div className="input-group">
+                                  <label htmlFor="drv-license-url">Enlace de la Licencia Digital (Opcional)</label>
+                                  <input
+                                    id="drv-license-url"
+                                    type="text"
+                                    placeholder="Ej. /uploads/licenses/lic-123.jpg"
+                                    value={driverLicenseUrl}
+                                    onChange={(e) => setDriverLicenseUrl(e.target.value)}
+                                  />
+                                </div>
+
+                                {driverProfileError && <span className="error-message">{driverProfileError}</span>}
+                                {driverProfileMessage && <span className="success-message">{driverProfileMessage}</span>}
+
+                                <button type="submit" className="confirm-btn">Enviar Perfil</button>
+                              </form>
                             </div>
+                          ) : currentUser.driverDetails.status !== 'VERIFIED' ? (
+                            <div className="alert alert-warning">
+                              Su documentación está en revisión por un administrador. No puede recibir propuestas hasta ser verificado.
+                            </div>
+                          ) : (
+                            <>
+                              <div className="availability-toggle-section">
+                                <p>
+                                  <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
+                                    {driverAvailable ? 'DISPONIBLE PARA DESPACHOS' : 'NO DISPONIBLE'}
+                                  </strong>
+                                </p>
+                                <button
+                                  onClick={toggleAvailability}
+                                  className={`toggle-btn ${driverAvailable ? 'online' : 'offline'}`}
+                                >
+                                  {driverAvailable ? 'Desconectarse' : 'Conectarse (Disponible)'}
+                                </button>
+                              </div>
+                              {driverStatusMessage && <div className="status-msg">{driverStatusMessage}</div>}
+
+                              {/* Network Loss Simulator */}
+                              <div className="network-simulator-card">
+                                <div className="network-sim-header">
+                                  <span>Simulador Fuera de Línea</span>
+                                  <span className={`network-status ${offlineSimulation ? 'offline' : 'online'}`}>
+                                    {offlineSimulation ? '🔴 SIN SEÑAL' : '🟢 CON SEÑAL'}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={toggleOfflineSimulation}
+                                  className={`network-toggle-btn ${offlineSimulation ? 'reconnect' : 'disconnect'}`}
+                                >
+                                  {offlineSimulation ? 'Sincronizar Coordenadas' : 'Simular Corte de Señal'}
+                                </button>
+                                {offlineCount > 0 && (
+                                  <div className="offline-buffer-badge">
+                                    ⚠️ {offlineCount} coordenadas en cola local esperando señal...
+                                  </div>
+                                )}
+                              </div>
+                            </>
                           )}
                         </div>
-                      </>
+
+                        {/* ACTIVE OFFER PROPOSAL */}
+                        {activeProposal && (
+                          <div className="proposal-card glass-card active-glow">
+                            <div className="proposal-pulse-header">
+                              <h4>🚨 ¡DESPACHO PROPUESTO!</h4>
+                              <span className="countdown-timer">{proposalCountdown}s</span>
+                            </div>
+                            <p className="proposal-desc">{activeProposal.description}</p>
+                            <div className="proposal-actions">
+                              <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
+                              <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ACTIVE TRANSIT TASK */}
+                        {activeTask && (
+                          <div className="active-task-card glass-card">
+                            <h4>📦 Entrega en Progreso</h4>
+                            <div className="task-details">
+                              <p>ID: <code>{activeTask.id}</code></p>
+                              <p>Ubicación GPS: {driverLat.toFixed(4)}, {driverLng.toFixed(4)}</p>
+                            </div>
+
+                            <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
+                              <h5>Confirmar Recepción</h5>
+                              <div className="input-group">
+                                <label htmlFor="del-signature">Nombre / Cédula Receptor</label>
+                                <input
+                                  id="del-signature"
+                                  type="text"
+                                  value={deliverySignature}
+                                  onChange={(e) => setDeliverySignature(e.target.value)}
+                                />
+                              </div>
+                              <div className="input-group">
+                                <label htmlFor="del-photo">URL Foto de Entrega</label>
+                                <input
+                                  id="del-photo"
+                                  type="text"
+                                  value={deliveryPhoto}
+                                  onChange={(e) => setDeliveryPhoto(e.target.value)}
+                                />
+                              </div>
+                              {deliveryError && <span className="error-message">{deliveryError}</span>}
+                              {deliveryMessage && <span className="success-message">{deliveryMessage}</span>}
+                              <button type="submit" className="confirm-btn">Confirmar Entrega</button>
+                            </form>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="auth-required-card glass-card">
+                        <h3>Acceso Conductor Requerido</h3>
+                        <p>Inicie sesión con su cuenta de Conductor para conectarse y administrar entregas.</p>
+                        {!currentUser && renderLoginForm()}
+                      </div>
                     )}
                   </div>
+                )}
 
-                  {/* ACTIVE OFFER PROPOSAL */}
-                  {activeProposal && (
-                    <div className="proposal-card glass active-glow">
-                      <div className="proposal-pulse-header">
-                        <h4>🚨 ¡PROPUESTA DE ENTREGA DISPONIBLE!</h4>
-                        <span className="countdown-timer">{proposalCountdown}s</span>
-                      </div>
-                      <p className="proposal-desc">{activeProposal.description}</p>
-                      <p className="proposal-sub">Seleccione una opción antes de que expire el tiempo.</p>
-                      
-                      <div className="proposal-actions">
-                        <button onClick={handleAcceptProposal} className="accept-btn">Aceptar Despacho</button>
-                        <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ACTIVE TRANSIT TASK */}
-                  {activeTask && (
-                    <div className="active-task-card glass">
-                      <h4>📦 Entrega en Progreso</h4>
-                      <div className="task-details">
-                        <p>ID de Despacho: <code>{activeTask.id}</code></p>
-                        <p>Estado del Despacho: <span className="badge-transit">EN TRÁNSITO</span></p>
-                        <div className="gps-live-box">
-                          <span className="gps-indicator"></span>
-                          <span>Ubicación GPS actual: {driverLat.toFixed(5)}, {driverLng.toFixed(5)}</span>
-                        </div>
-                      </div>
-
-                      {/* Delivery Confirmation Form */}
-                      <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
-                        <h5>Confirmar Recepción de Ayuda</h5>
-                        <p className="delivery-instructions">Para finalizar la entrega, registre la firma digital del receptor o el URL de la fotografía de prueba.</p>
-                        
-                        <div className="input-group">
-                          <label htmlFor="del-signature">Firma Digital del Receptor (Nombre/Cédula)</label>
-                          <input
-                            id="del-signature"
-                            type="text"
-                            placeholder="Ej. María Rodríguez - V-9876543"
-                            value={deliverySignature}
-                            onChange={(e) => setDeliverySignature(e.target.value)}
-                          />
-                        </div>
-
-                        <div className="input-group">
-                          <label htmlFor="del-photo">URL de la Foto de Prueba de Entrega</label>
-                          <input
-                            id="del-photo"
-                            type="text"
-                            placeholder="Ej. /uploads/evidence/task-001.jpg"
-                            value={deliveryPhoto}
-                            onChange={(e) => setDeliveryPhoto(e.target.value)}
-                          />
-                        </div>
-
-                        {deliveryError && <span className="error-message">{deliveryError}</span>}
-                        {deliveryMessage && <span className="success-message">{deliveryMessage}</span>}
-
-                        <button type="submit" className="confirm-btn">Confirmar Entrega Completa</button>
-                      </form>
-
-                      {/* Location updates log */}
-                      <div className="location-logs-container">
-                        <h6>Registro Local de Coordenadas (Últimos Puntos):</h6>
-                        <div className="location-logs-list">
-                          {locationLog.map((log, index) => (
-                            <div key={index} className="log-row">
-                              <span>{log.time}</span>
-                              <span>{log.lat.toFixed(4)}, {log.lng.toFixed(4)}</span>
-                              <span className={log.status.includes('Sent') ? 'log-sent' : 'log-buffered'}>
-                                {log.status}
-                              </span>
-                            </div>
-                          ))}
-                          {locationLog.length === 0 && <p className="no-logs">Comenzando a registrar coordenadas cada 15s...</p>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="auth-required-card glass">
-                  <h3>Acceso Limitado a Conductores</h3>
-                  <p>Inicie sesión con su cuenta de Conductor para conectarse y administrar entregas.</p>
-                  {!currentUser && renderLoginForm()}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ADMINISTRATOR SIMULATOR TAB */}
-          {activeTab === 'admin' && (
-            <div className="tab-pane">
-              {currentUser && currentUser.role === 'ADMIN' ? (
-                <div className="dashboard-inner admin-panel">
-                  <div className="welcome-badge admin-badge">Simulador Administrativo</div>
-                  
-                  <div className="admin-drivers-section glass">
-                    <h4>Vetting de Conductores Pendientes</h4>
-                    <p className="admin-instructions">Revise la documentación y apruebe conductores para que puedan ponerse disponibles para dispatches.</p>
-                    
-                    {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
-
-                    <div className="drivers-approval-list">
-                      {pendingDrivers.map((driver) => (
-                        <div key={driver.id} className="driver-approval-row">
-                          <div className="driver-info">
-                            <span className="driver-name">{driver.name}</span>
-                            <span className="driver-sub">Cédula: {driver.driverDetails.cedula} | Placa: {driver.driverDetails.licensePlate}</span>
-                            <span className="driver-vehicle">{driver.driverDetails.vehicleDetails}</span>
-                            <a href={driver.driverDetails.licenseDocUrl} target="_blank" className="license-link">
-                              Ver Licencia de Conducir 📄
-                            </a>
+                {/* ADMINISTRATOR SIMULATOR TAB */}
+                {activeTab === 'admin' && (
+                  <div className="tab-pane-content">
+                    {currentUser && userRoles.includes('ADMIN') ? (
+                      <div className="admin-panel">
+                        <div className="admin-drivers-section glass-card">
+                          <h4>Vetting de Conductores</h4>
+                          {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
+                          <div className="drivers-approval-list">
+                             {pendingDrivers.map((driver) => (
+                              <div key={driver.id} className="driver-approval-row">
+                                <div className="driver-info">
+                                  <span className="driver-name">{driver.name}</span>
+                                  <span className="driver-sub">Cédula: {driver.driverDetails.cedula}</span>
+                                </div>
+                                <button onClick={() => handleApproveDriver(driver.id)} className="approve-btn">Aprobar</button>
+                              </div>
+                            ))}
+                            {pendingDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores pendientes.</p>}
                           </div>
-                          <button
-                            onClick={() => handleApproveDriver(driver.id)}
-                            className="approve-btn"
-                          >
-                            Aprobar Cuenta
-                          </button>
                         </div>
-                      ))}
-                      {pendingDrivers.length === 0 && (
-                        <p className="no-drivers-msg">No hay solicitudes de conductores pendientes de revisión en este momento.</p>
-                      )}
-                    </div>
-                  </div>
 
-                  <div className="admin-matching-section glass margin-top">
-                    <h4>Emparejamiento Manual / Simulación</h4>
-                    <p className="admin-instructions">
-                      Asigne y empareje solicitudes de ONGs abiertas con los donantes/recursos catalogados para crear propuestas de despacho automáticamente.
-                    </p>
-                    
-                    <div className="matching-controls-list">
-                      {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
-                        <div key={need.id} className="matching-row">
-                          <div className="matching-info">
-                            <span className="need-title">{need.description}</span>
-                            <span className="need-sub">
-                              Ubicación: {need.state}, {need.sector} | Prioridad: {need.urgencyScore}
+                        <div className="admin-matching-section glass-card margin-top">
+                          <h4>Emparejamiento Manual</h4>
+                          <div className="matching-controls-list">
+                            {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
+                              <div key={need.id} className="matching-row">
+                                <div className="matching-info">
+                                  <span className="need-title">{need.description}</span>
+                                </div>
+                                <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
+                              </div>
+                            ))}
+                            {needsQueue.filter(n => n.status === 'PENDING').length === 0 && <p className="no-matching-msg">No hay solicitudes pendientes.</p>}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="auth-required-card glass-card">
+                        <h3>Acceso Administrador Requerido</h3>
+                        <p>Inicie sesión con cuenta de Administrador para realizar vetting.</p>
+                        {!currentUser && renderLoginForm()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TEAMS MANAGEMENT TAB */}
+                {activeTab === 'equipos' && (
+                  <div className="tab-pane-content">
+                    {currentUser ? (
+                      <div className="teams-dashboard">
+                        {myTeam && myTeam.inTeam ? (
+                          <div className="glass-card">
+                            <div className="welcome-badge">Mi Equipo: {myTeam.team.name}</div>
+                            {myTeam.team.description && (
+                              <p className="team-description">{myTeam.team.description}</p>
+                            )}
+                            
+                            <div className="team-sharing-control">
+                              <label className="checkbox-label location-sharing-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={teamSharing}
+                                  onChange={handleToggleSharing}
+                                />
+                                📡 Compartir mi ubicación en tiempo real con el equipo
+                              </label>
+                            </div>
+
+                            <div className="team-members-section">
+                              <h4>Miembros del Equipo</h4>
+                              <div className="team-members-list">
+                                {myTeam.team.members.map((member) => (
+                                  <div key={member.id} className="team-member-row">
+                                    <div className="member-meta">
+                                      <span className="member-name">
+                                        {member.name} {member.id === currentUser.id ? '(Tú)' : ''}
+                                      </span>
+                                      <span className="member-roles">{member.roles.split(',').join(', ')}</span>
+                                    </div>
+                                    <div className="member-location-status">
+                                      {member.shareLocationWithTeam ? (
+                                        member.location ? (
+                                          <span className="location-active-badge">
+                                            🟢 En vivo: {member.location.latitude.toFixed(4)}, {member.location.longitude.toFixed(4)}
+                                          </span>
+                                        ) : (
+                                          <span className="location-pending-badge">🟡 Esperando GPS</span>
+                                        )
+                                      ) : (
+                                        <span className="location-inactive-badge">🔴 Sin compartir</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <button onClick={handleLeaveTeam} className="leave-team-btn">
+                              Salir del Equipo
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="teams-setup">
+                            <div className="glass-card">
+                              <h4>Crear un Equipo Nuevo</h4>
+                              <form onSubmit={handleCreateTeam} className="create-team-form">
+                                <div className="input-group">
+                                  <label htmlFor="team-name">Nombre del Equipo *</label>
+                                  <input
+                                    id="team-name"
+                                    type="text"
+                                    placeholder="Ej. Unidad de Rescate Caracas"
+                                    value={teamName}
+                                    onChange={(e) => setTeamName(e.target.value)}
+                                    required
+                                  />
+                                </div>
+                                <div className="input-group">
+                                  <label htmlFor="team-desc">Descripción</label>
+                                  <input
+                                    id="team-desc"
+                                    type="text"
+                                    placeholder="Ej. Grupo de conductores voluntarios."
+                                    value={teamDesc}
+                                    onChange={(e) => setTeamDesc(e.target.value)}
+                                  />
+                                </div>
+                                <button type="submit" className="confirm-btn">Crear Equipo</button>
+                              </form>
+                            </div>
+
+                            <div className="glass-card margin-top">
+                              <h4>Unirse a un Equipo Existente</h4>
+                              <div className="available-teams-list">
+                                {availableTeams.map((team) => (
+                                  <div key={team.id} className="available-team-row">
+                                    <div className="team-info">
+                                      <span className="available-team-name">{team.name}</span>
+                                      {team.description && (
+                                        <span className="available-team-desc">{team.description}</span>
+                                      )}
+                                      <span className="team-creator">Creado por: {team.creator.name}</span>
+                                    </div>
+                                    <button
+                                      onClick={() => handleJoinTeam(team.id)}
+                                      className="join-team-btn"
+                                    >
+                                      Unirse
+                                    </button>
+                                  </div>
+                                ))}
+                                {availableTeams.length === 0 && (
+                                  <p className="no-teams-msg">No hay equipos disponibles.</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="auth-required-card glass-card">
+                        <h3>Acceso Requerido</h3>
+                        <p>Inicie sesión con su cuenta para crear o unirse a un equipo.</p>
+                        {renderLoginForm()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                  </>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN: Queues and stock summaries */}
+              <div className={`column-panel right-panel animate-slide-up ${rightMinimized ? 'minimized' : ''}`}>
+                <div className="panel-header-minimize">
+                  <span>{rightMinimized ? '📊 Resumen General' : ''}</span>
+                  <button 
+                    className="minimize-panel-btn" 
+                    onClick={() => setRightMinimized(!rightMinimized)}
+                    title={rightMinimized ? "Maximizar Panel" : "Minimizar Panel"}
+                  >
+                    {rightMinimized ? '➕' : '➖'}
+                  </button>
+                </div>
+
+                {!rightMinimized && (
+                  <>
+                
+                {/* NEEDS PRIORITY QUEUE */}
+                <div className="status-panel glass-card">
+                  <div className="panel-header">
+                    <h3>Cola de Urgencias</h3>
+                    <button onClick={refreshNeeds} className="refresh-btn">↻</button>
+                  </div>
+                  <div className="needs-list">
+                    {needsQueue.map((need) => {
+                      const isHigh = need.urgencyScore >= 80;
+                      return (
+                        <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
+                          <div className="need-card-header">
+                            <span className="need-location">{need.state} - {need.sector}</span>
+                            <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
+                              {isHigh ? 'INMEDIATO' : `Prioridad: ${need.urgencyScore}`}
                             </span>
                           </div>
-                          <button
-                            onClick={() => simulateDispatchproposal(need.id)}
-                            className="match-btn"
-                          >
-                            Emparejar y Proponer Despacho
-                          </button>
+                          <p className="need-card-desc">{need.description}</p>
+                          <div className="need-card-footer">
+                            <span className={`status-badge-need ${need.status}`}>
+                              {need.status === 'PENDING' ? 'Pendiente' : 
+                               need.status === 'ALLOCATED' ? 'Asignada' : 'Entregado'}
+                            </span>
+                          </div>
                         </div>
-                      ))}
-                      {needsQueue.filter(n => n.status === 'PENDING').length === 0 && (
-                        <p className="no-matching-msg">No hay solicitudes pendientes de emparejamiento.</p>
-                      )}
-                    </div>
+                      );
+                    })}
+                    {needsQueue.length === 0 && <p className="empty-panel-msg">No hay solicitudes.</p>}
                   </div>
                 </div>
-              ) : (
-                <div className="auth-required-card glass">
-                  <h3>Acceso Administrador Requerido</h3>
-                  <p>Inicie sesión con una cuenta de Administrador para vetar conductores y forzar emparejamientos.</p>
-                  {!currentUser && renderLoginForm()}
-                </div>
-              )}
-            </div>
-          )}
 
-        </div>
-
-        {/* Right Side: Active Inventory & Needs Priorities Queue */}
-        <div className="dashboard-status-column animate-slide-up">
-          
-          {/* NEEDS PRIORITY QUEUE */}
-          <div className="status-panel glass">
-            <div className="panel-header">
-              <h3>Cola de Necesidades Priorizadas</h3>
-              <button onClick={refreshNeeds} className="refresh-btn" title="Refrescar">↻</button>
-            </div>
-            <p className="panel-desc">Solicitudes activas ordenadas por puntaje de urgencia calculado.</p>
-
-            <div className="needs-list">
-              {needsQueue.map((need) => {
-                const isHigh = need.urgencyScore >= 80;
-                return (
-                  <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
-                    <div className="need-card-header">
-                      <span className="need-location">{need.state} - {need.sector}</span>
-                      <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
-                        {isHigh ? 'ATENCIÓN INMEDIATA' : `Prioridad: ${need.urgencyScore}`}
-                      </span>
-                    </div>
-                    <p className="need-card-desc">{need.description}</p>
-                    
-                    {need.items && need.items.length > 0 && (
-                      <div className="need-items-list">
-                        <strong>Artículos requeridos:</strong>
-                        <ul>
-                          {need.items.map((item, idx) => (
-                            <li key={idx}>
-                              {item.resource ? item.resource.name : 'Recurso'} - Cantidad: {item.quantity}
-                            </li>
-                          ))}
-                        </ul>
+                {/* ACTIVE INVENTORY CATALOG */}
+                <div className="status-panel glass-card margin-top">
+                  <div className="panel-header">
+                    <h3>Inventario Disponible</h3>
+                    <button onClick={refreshResources} className="refresh-btn">↻</button>
+                  </div>
+                  <div className="resources-list-box">
+                    {resourcesList.map((res) => (
+                      <div key={res.id} className="resource-row">
+                        <div className="resource-meta">
+                          <span className="res-row-name">{res.name}</span>
+                          <span className="res-row-category">{res.category}</span>
+                        </div>
+                        <span className="res-row-qty">{res.stockQuantity} un.</span>
                       </div>
-                    )}
-                    
-                    <div className="need-card-footer">
-                      <span className={`status-badge-need ${need.status}`}>
-                        {need.status === 'PENDING' ? 'Abierta/Pendiente' : 
-                         need.status === 'ALLOCATED' ? 'Asignada / Reservado' : 'Entregado'}
-                      </span>
-                      <span className="date-tag">{new Date(need.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                );
-              })}
-              {needsQueue.length === 0 && (
-                <p className="empty-panel-msg">No hay solicitudes de auxilio registradas.</p>
-              )}
-            </div>
-          </div>
-
-          {/* ACTIVE INVENTORY CATALOG */}
-          <div className="status-panel glass margin-top">
-            <div className="panel-header">
-              <h3>Catálogo de Recursos & Stock</h3>
-              <button onClick={refreshResources} className="refresh-btn" title="Refrescar">↻</button>
-            </div>
-            <p className="panel-desc">Inventario total de recursos disponibles para asignación.</p>
-
-            <div className="resources-list-box">
-              {resourcesList.map((res) => (
-                <div key={res.id} className="resource-row">
-                  <div className="resource-meta">
-                    <span className="res-row-name">{res.name}</span>
-                    <span className="res-row-category">{res.category}</span>
-                  </div>
-                  <div className="resource-stock-box">
-                    <span className="res-row-qty">{res.stockQuantity} unidades</span>
-                    {res.expirationDate && (
-                      <span className="res-row-exp">
-                        Vence: {new Date(res.expirationDate).toLocaleDateString()}
-                      </span>
-                    )}
+                    ))}
+                    {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
                   </div>
                 </div>
-              ))}
-              {resourcesList.length === 0 && (
-                <p className="empty-panel-msg">No hay recursos catalogados en el sistema.</p>
-              )}
+                  </>
+                )}
+              </div>
+
             </div>
+
+            {/* MAP CLICK MODAL OVERLAY FOR REGISTERING A CENTER */}
+            {registeringCenter && mapClickLocation && (
+              <div className="collection-center-modal glass-card animate-fade-in">
+                <h3>Registrar Centro de Acopio</h3>
+                <p className="modal-coords">Ubicación elegida: {mapClickLocation.lat.toFixed(5)}, {mapClickLocation.lng.toFixed(5)}</p>
+                
+                <form onSubmit={handleRegisterCenter}>
+                  <div className="input-group">
+                    <label htmlFor="center-name">Nombre del Centro *</label>
+                    <input
+                      id="center-name"
+                      type="text"
+                      placeholder="Ej. Comedor Comunitario El Valle"
+                      value={centerName}
+                      onChange={(e) => setCenterName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label htmlFor="center-desc">Descripción de la Ayuda *</label>
+                    <textarea
+                      id="center-desc"
+                      placeholder="Ej. Ofrecemos comida caliente y camas para emergencias."
+                      value={centerDesc}
+                      onChange={(e) => setCenterDesc(e.target.value)}
+                      required
+                      rows={3}
+                      className="textarea-input"
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Servicios Ofrecidos *</label>
+                    <div className="checkbox-grid">
+                      <label className="checkbox-label">
+                        <input type="checkbox" checked={centerServices.includes('Comida')} onChange={() => handleServiceCheckbox('Comida')} />
+                        Alimentos
+                      </label>
+                      <label className="checkbox-label">
+                        <input type="checkbox" checked={centerServices.includes('Medicina')} onChange={() => handleServiceCheckbox('Medicina')} />
+                        Medicina
+                      </label>
+                      <label className="checkbox-label">
+                        <input type="checkbox" checked={centerServices.includes('Camas')} onChange={() => handleServiceCheckbox('Camas')} />
+                        Dormitorio
+                      </label>
+                      <label className="checkbox-label">
+                        <input type="checkbox" checked={centerServices.includes('Refugio')} onChange={() => handleServiceCheckbox('Refugio')} />
+                        Refugio
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="input-group">
+                    <label htmlFor="center-address">Dirección Física</label>
+                    <input
+                      id="center-address"
+                      type="text"
+                      placeholder="Ej. Frente a Plaza Bolívar"
+                      value={centerAddress}
+                      onChange={(e) => setCenterAddress(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="modal-actions">
+                    <button type="submit" className="confirm-btn">Guardar Centro</button>
+                    <button type="button" className="reject-btn" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            )}
+            
           </div>
-
-        </div>
-
+        )}
       </div>
 
       <style jsx>{`
         .home-wrapper {
+          position: relative;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          background-color: #0b0f19;
+        }
+
+        .floating-ui-container {
+          position: relative;
+          z-index: 10;
+          width: 100%;
+          height: 100%;
+          pointer-events: none; /* Let map clicks pass through */
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          box-sizing: border-box;
         }
-        .hero-banner {
-          padding: 30px 40px;
-          border-radius: 16px;
+
+        .panels-layout-wrapper {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          height: 100%;
+          padding: 20px;
+          box-sizing: border-box;
         }
-        @media (max-width: 600px) {
-          .hero-banner {
-            padding: 20px;
-          }
+
+        .bottom-controls-bar {
+          position: fixed;
+          bottom: 20px;
+          left: 20px;
+          pointer-events: auto;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 16px;
+          border-radius: 30px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
         }
-        .hero-banner h1 {
-          font-size: 32px;
-          font-weight: 800;
-          letter-spacing: -1px;
-          background: linear-gradient(90deg, #f59e0b, #2563eb, #ef4444);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
+
+        .toggle-ui-btn {
+          background: none;
+          border: none;
+          font-weight: 700;
+          font-size: 13px;
+          color: #f8fafc;
+          cursor: pointer;
+          transition: all 0.2s;
+          padding: 6px 12px;
+          border-radius: 20px;
         }
-        .hero-banner p {
-          color: var(--text-secondary);
-          font-size: 16px;
-          max-width: 700px;
+
+        .toggle-ui-btn:hover {
+          background-color: rgba(255, 255, 255, 0.08);
         }
-        .user-info-card {
-          margin-top: 15px;
+
+        .map-style-selector {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          padding-left: 12px;
+        }
+
+        .style-label {
+          font-size: 11px;
+          color: #cbd5e1;
+          font-weight: bold;
+          text-transform: uppercase;
+        }
+
+        .map-style-select {
+          background: rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #f8fafc;
+          border-radius: 12px;
+          padding: 4px 8px;
+          font-size: 12px;
+          outline: none;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .map-style-select:hover {
+          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Floating Header design */
+        .floating-header {
+          pointer-events: auto;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 20px;
-          background-color: rgba(255, 255, 255, 0.05);
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-          font-size: 14px;
+          padding: 12px 24px;
+          border-radius: 16px;
+          margin-bottom: 20px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          width: 100%;
+          box-sizing: border-box;
         }
-        @media (max-width: 600px) {
-          .user-info-card {
-            flex-direction: column;
-            gap: 10px;
-            align-items: flex-start;
-          }
+
+        .brand-box {
+          display: flex;
+          align-items: center;
+          gap: 12px;
         }
+
+        .brand-logo {
+          font-size: 28px;
+        }
+
+        .brand-text h2 {
+          font-size: 18px;
+          font-weight: 800;
+          color: #f8fafc;
+          letter-spacing: -0.5px;
+        }
+
+        .brand-text p {
+          font-size: 11px;
+          color: #94a3b8;
+        }
+
+        .header-session-info {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          font-size: 13px;
+          color: #e2e8f0;
+        }
+
         .logout-btn {
-          background-color: var(--error-color);
+          background-color: #ef4444;
           color: white;
           border: none;
           padding: 6px 12px;
-          border-radius: 6px;
+          border-radius: 8px;
           cursor: pointer;
           font-weight: 600;
-          font-size: 13px;
+          font-size: 12px;
           transition: opacity 0.2s;
         }
-        .logout-btn:hover {
-          opacity: 0.9;
+
+        .logout-btn:hover { opacity: 0.9; }
+        .guest-badge {
+          background-color: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 11px;
+          color: #cbd5e1;
         }
-        .guest-banner-msg {
-          font-size: 13px;
-          color: var(--text-secondary);
-          margin-top: 10px;
+
+        /* Columns Floating Panels Layout */
+        .floating-body-columns {
+          display: flex;
+          justify-content: space-between;
+          flex: 1;
+          height: calc(100vh - 160px);
+          gap: 20px;
+          box-sizing: border-box;
+          overflow: hidden;
         }
-        .main-content-grid {
-          display: grid;
-          grid-template-columns: 1fr 400px;
-          gap: 24px;
-          align-items: start;
+
+        .column-panel {
+          pointer-events: auto; /* Re-enable click actions */
+          display: flex;
+          flex-direction: column;
+          max-height: 100%;
+          overflow-y: auto;
+          gap: 16px;
+          /* Custom scrollbar */
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,0.1) transparent;
         }
+
+        .column-panel::-webkit-scrollbar {
+          width: 6px;
+        }
+        .column-panel::-webkit-scrollbar-thumb {
+          background-color: rgba(255,255,255,0.1);
+          border-radius: 3px;
+        }
+
+        .left-panel {
+          width: 440px;
+        }
+
+        .right-panel {
+          width: 380px;
+        }
+
         @media (max-width: 900px) {
-          .main-content-grid {
-            grid-template-columns: 1fr;
+          .floating-body-columns {
+            flex-direction: column;
+            overflow-y: auto;
+          }
+          .left-panel, .right-panel {
+            width: 100%;
+            max-height: none;
           }
         }
+
+        /* Glass Cards styles */
+        .glass-card {
+          background: rgba(15, 23, 42, 0.85);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          padding: 24px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .welcome-badge {
+          font-size: 15px;
+          font-weight: 700;
+          color: #f97316;
+          margin-bottom: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .panel-text {
+          font-size: 13px;
+          color: #cbd5e1;
+          line-height: 1.5;
+          margin-bottom: 14px;
+        }
+
+        .panel-text-small {
+          font-size: 12px;
+          line-height: 1.4;
+        }
+
+        .text-orange {
+          color: #fdba74;
+        }
+
+        .legend-box {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          background: rgba(0, 0, 0, 0.2);
+          padding: 12px;
+          border-radius: 10px;
+          margin-bottom: 16px;
+        }
+
+        .legend-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 12px;
+          color: #cbd5e1;
+        }
+
+        .dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+        }
+        .dot.red { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
+        .dot.blue { background-color: #3b82f6; }
+        .dot.orange { background-color: #f97316; }
+        .dot.cyan { background-color: #06b6d4; box-shadow: 0 0 8px #06b6d4; }
+
+        .register-center-trigger-btn {
+          width: 100%;
+          padding: 12px;
+          border-radius: 10px;
+          border: 1px solid rgba(249, 115, 22, 0.4);
+          background-color: rgba(249, 115, 22, 0.1);
+          color: #fdba74;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-top: 14px;
+        }
+        .register-center-trigger-btn:hover {
+          background-color: rgba(249, 115, 22, 0.2);
+          border-color: rgba(249, 115, 22, 0.6);
+        }
+        .register-center-trigger-btn.active {
+          background-color: #ef4444;
+          border-color: #ef4444;
+          color: white;
+          animation: pulse-red-btn 1.5s infinite;
+        }
+        @keyframes pulse-red-btn {
+          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
         .nav-tabs {
           display: flex;
+          flex-wrap: wrap;
           gap: 4px;
           padding: 4px;
           border-radius: 12px;
-          margin-bottom: 20px;
+          margin-bottom: 14px;
+          pointer-events: auto;
         }
+
         .tab-btn {
           flex: 1;
+          min-width: 75px;
           background: none;
           border: none;
-          padding: 12px 6px;
-          font-size: 14px;
+          padding: 10px 4px;
+          font-size: 12px;
           font-weight: 600;
-          color: var(--text-secondary);
+          color: #94a3b8;
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s;
         }
+
         .tab-btn:hover {
-          color: var(--text-primary);
+          color: #f8fafc;
           background-color: rgba(255, 255, 255, 0.03);
         }
+
         .tab-btn.active {
-          color: var(--text-primary);
+          color: #f8fafc;
           background-color: rgba(255, 255, 255, 0.08);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
+
         .tab-btn.register-tab {
-          background-color: rgba(37, 99, 235, 0.1);
-          color: var(--primary-color);
+          background-color: rgba(59, 130, 246, 0.1);
+          color: #60a5fa;
         }
         .tab-btn.register-tab.active {
-          background-color: var(--primary-color);
+          background-color: #3b82f6;
           color: white;
         }
+
         .auth-required-card {
-          padding: 30px;
           text-align: center;
-          border-radius: 12px;
         }
         .auth-required-card h3 {
-          font-size: 20px;
+          font-size: 18px;
           margin-bottom: 8px;
+          color: #f8fafc;
         }
         .auth-required-card p {
-          color: var(--text-secondary);
-          font-size: 14px;
-          margin-bottom: 24px;
+          color: #94a3b8;
+          font-size: 13px;
+          margin-bottom: 20px;
         }
+
         .login-mini-form {
-          max-width: 320px;
+          max-width: 100%;
           margin: 0 auto;
           text-align: left;
           display: flex;
@@ -1026,574 +1995,719 @@ export default function Home() {
           gap: 12px;
         }
         .login-mini-form label {
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--text-secondary);
+          font-size: 11px;
+          color: #94a3b8;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
         .login-mini-form input {
           width: 100%;
-          padding: 10px;
-          background-color: var(--bg-body);
-          border: 1px solid var(--border-color);
-          border-radius: 6px;
+          padding: 12px 14px;
+          background-color: rgba(0, 0, 0, 0.25);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
           color: white;
           outline: none;
+          font-size: 13px;
+          transition: all 0.2s;
         }
         .login-mini-form input:focus {
-          border-color: var(--primary-color);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
         .login-submit-btn {
-          background-color: var(--primary-color);
+          background-color: #3b82f6;
           color: white;
           border: none;
           padding: 12px;
-          border-radius: 6px;
-          font-weight: 600;
+          border-radius: 10px;
+          font-weight: 700;
+          font-size: 13px;
           cursor: pointer;
-          transition: background-color 0.2s;
+          transition: all 0.2s;
+          text-align: center;
         }
         .login-submit-btn:hover {
-          background-color: var(--primary-hover);
+          background-color: #2563eb;
+          transform: translateY(-1px);
+        }
+        .login-submit-btn:active {
+          transform: translateY(0);
+        }
+
+        .panel-header-minimize {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 14px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          font-size: 11px;
+          font-weight: bold;
+          color: #cbd5e1;
+          user-select: none;
+        }
+
+        .minimize-panel-btn {
+          background: none;
+          border: none;
+          color: #94a3b8;
+          font-size: 12px;
+          cursor: pointer;
+          transition: transform 0.2s;
+          padding: 4px;
+        }
+
+        .minimize-panel-btn:hover {
+          color: #f8fafc;
+          transform: scale(1.1);
+        }
+
+        .column-panel.minimized {
+          height: auto !important;
+          max-height: 40px !important;
+          overflow: hidden !important;
+          padding: 0 !important;
+          transition: max-height 0.3s ease-out;
+        }
+
+        /* Teams Styles */
+        .teams-dashboard, .teams-setup {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .team-description {
+          font-size: 12px;
+          color: #cbd5e1;
+          margin-bottom: 14px;
+          line-height: 1.4;
+        }
+
+        .team-sharing-control {
+          background: rgba(6, 182, 212, 0.1);
+          border: 1px solid rgba(6, 182, 212, 0.25);
+          padding: 12px;
+          border-radius: 10px;
+          margin-bottom: 14px;
+        }
+
+        .location-sharing-switch {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: #a5f3fc;
+          cursor: pointer;
+        }
+
+        .team-members-section h4 {
+          font-size: 13px;
+          color: #f8fafc;
+          margin-bottom: 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          padding-bottom: 6px;
+        }
+
+        .team-members-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: 200px;
+          overflow-y: auto;
+        }
+
+        .team-member-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px;
+          background: rgba(0, 0, 0, 0.25);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+        }
+
+        .member-meta {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .member-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: #f8fafc;
+        }
+
+        .member-roles {
+          font-size: 9px;
+          color: #94a3b8;
+          text-transform: uppercase;
+        }
+
+        .location-active-badge {
+          font-size: 10px;
+          color: #34d399;
+          font-weight: bold;
+        }
+
+        .location-pending-badge {
+          font-size: 10px;
+          color: #fbbf24;
+        }
+
+        .location-inactive-badge {
+          font-size: 10px;
+          color: #f87171;
+        }
+
+        .leave-team-btn {
+          width: 100%;
+          padding: 11px;
+          background-color: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: #f87171;
+          border-radius: 10px;
+          font-weight: 700;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-top: 10px;
+        }
+
+        .leave-team-btn:hover {
+          background-color: rgba(239, 68, 68, 0.25);
+        }
+
+        .available-teams-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: 200px;
+          overflow-y: auto;
+        }
+
+        .available-team-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px;
+          background: rgba(0, 0, 0, 0.25);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+        }
+
+        .team-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .available-team-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: #f8fafc;
+        }
+
+        .available-team-desc {
+          font-size: 10px;
+          color: #cbd5e1;
+        }
+
+        .team-creator {
+          font-size: 9px;
+          color: #94a3b8;
+        }
+
+        .join-team-btn {
+          padding: 6px 12px;
+          background-color: rgba(59, 130, 246, 0.15);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          color: #60a5fa;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .join-team-btn:hover {
+          background-color: rgba(59, 130, 246, 0.25);
+        }
+
+        /* Selected point details card overlay */
+        .selected-point-details-card {
+          margin: 14px;
+          padding: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          border-radius: 12px;
+          background: rgba(15, 23, 42, 0.95);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        .selected-point-details-card .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .point-type-badge {
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          background: rgba(59, 130, 246, 0.2);
+          color: #60a5fa;
+          padding: 4px 8px;
+          border-radius: 6px;
+          letter-spacing: 0.5px;
+        }
+
+        .close-point-btn {
+          background: none;
+          border: none;
+          color: #94a3b8;
+          font-size: 14px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: color 0.2s;
+        }
+
+        .close-point-btn:hover {
+          color: #f8fafc;
+        }
+
+        .selected-point-details-card h3 {
+          font-size: 15px;
+          color: #f8fafc;
+          margin: 0 0 10px 0;
+          font-weight: 700;
+        }
+
+        .point-desc {
+          font-size: 12px;
+          color: #cbd5e1;
+          margin: 0 0 8px 0;
+          line-height: 1.4;
+        }
+
+        .point-coords {
+          font-size: 10px;
+          color: #94a3b8;
+          margin: 6px 0 12px 0;
+        }
+
+        .point-meta-row {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .point-urgency-badge {
+          font-size: 11px;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .point-urgency-badge.high {
+          background: rgba(239, 68, 68, 0.2);
+          color: #f87171;
+        }
+
+        .point-urgency-badge.normal {
+          background: rgba(59, 130, 246, 0.2);
+          color: #60a5fa;
+        }
+
+        .point-status-badge {
+          font-size: 11px;
+          background: rgba(255, 255, 255, 0.08);
+          color: #cbd5e1;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .point-action-btn {
+          width: 100%;
+          padding: 10px;
+          background-color: rgba(59, 130, 246, 0.15);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          color: #60a5fa;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
+        }
+
+        .point-action-btn:hover {
+          background-color: rgba(59, 130, 246, 0.25);
+          transform: translateY(-1px);
+        }
+
+        .point-action-btn.dispatch-action {
+          background-color: rgba(249, 115, 22, 0.15);
+          border-color: rgba(249, 115, 22, 0.3);
+          color: #ff9800;
+        }
+
+        .point-action-btn.dispatch-action:hover {
+          background-color: rgba(249, 115, 22, 0.25);
+        }
+
+        /* Collection Center register Modal on top of map */
+        .collection-center-modal {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 1000;
+          pointer-events: auto;
+          width: 460px;
+          max-width: 90%;
+          max-height: 85vh;
+          overflow-y: auto;
+          background: rgba(15, 23, 42, 0.95);
+          backdrop-filter: blur(16px);
+          border: 1px solid rgba(249, 115, 22, 0.3);
+          border-radius: 20px;
+          padding: 28px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+          animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
         
-        /* Driver styles */
+        @keyframes scaleUp {
+          from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .collection-center-modal h3 {
+          font-size: 20px;
+          color: #f97316;
+          margin-bottom: 4px;
+        }
+        .modal-coords {
+          font-size: 11px;
+          color: #94a3b8;
+          font-family: monospace;
+          margin-bottom: 18px;
+        }
+        .textarea-input {
+          padding: 10px;
+          background-color: #0b0f19;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 8px;
+          color: white;
+          font-size: 13px;
+          font-family: inherit;
+          resize: vertical;
+          outline: none;
+        }
+        .textarea-input:focus { border-color: #f97316; }
+        .checkbox-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          background: rgba(0, 0, 0, 0.2);
+          padding: 10px;
+          border-radius: 8px;
+        }
+        .checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          cursor: pointer;
+          color: #cbd5e1;
+        }
+        .modal-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+        }
+
+        /* Complete profile & Driver Styles */
+        .complete-profile-form-box {
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 12px;
+          padding: 16px;
+          margin-top: 10px;
+        }
+        .complete-profile-form {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+        .input-group label {
+          font-size: 12px;
+          color: #cbd5e1;
+          font-weight: 500;
+        }
+        .input-group input[type="text"] {
+          padding: 10px 12px;
+          background-color: #0b0f19;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 8px;
+          color: white;
+          font-size: 13px;
+          outline: none;
+        }
+        .input-group input[type="text"]:focus {
+          border-color: #3b82f6;
+        }
+
         .driver-dashboard-grid {
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          gap: 16px;
         }
         .driver-status-card {
-          padding: 24px;
-          border-radius: 12px;
+          padding: 20px;
+          border-radius: 16px;
         }
         .driver-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          border-bottom: 1px solid var(--border-color);
-          padding-bottom: 12px;
-          margin-bottom: 16px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          padding-bottom: 10px;
+          margin-bottom: 14px;
         }
         .status-badge {
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
+          padding: 3px 8px;
+          border-radius: 20px;
+          font-size: 10px;
           font-weight: 700;
         }
-        .status-badge.VERIFIED { background-color: var(--success-glow); color: var(--success-color); border: 1px solid var(--success-color); }
-        .status-badge.PENDING_APPROVAL { background-color: var(--warning-glow); color: var(--warning-color); border: 1px solid var(--warning-color); }
+        .status-badge.VERIFIED { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
+        .status-badge.PENDING_APPROVAL { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+        
         .availability-toggle-section {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background-color: rgba(255, 255, 255, 0.03);
-          padding: 16px;
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
+          background: rgba(0, 0, 0, 0.2);
+          padding: 12px;
+          border-radius: 10px;
         }
-        @media (max-width: 480px) {
-          .availability-toggle-section {
-            flex-direction: column;
-            gap: 12px;
-            align-items: flex-start;
-          }
-        }
-        .status-online { color: var(--success-color); }
-        .status-offline { color: var(--text-secondary); }
+        .status-online { color: #10b981; }
+        .status-offline { color: #94a3b8; }
         .toggle-btn {
           border: none;
-          padding: 10px 16px;
-          border-radius: 6px;
-          font-weight: 600;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-weight: 700;
+          font-size: 12px;
           cursor: pointer;
-          transition: opacity 0.2s;
         }
         .toggle-btn.online { background-color: #374151; color: white; }
-        .toggle-btn.offline { background-color: var(--success-color); color: white; }
-        .status-msg {
-          font-size: 13px;
-          color: var(--text-secondary);
-          margin-top: 8px;
-          font-style: italic;
-        }
+        .toggle-btn.offline { background-color: #10b981; color: white; }
+
         .network-simulator-card {
-          margin-top: 20px;
-          border-top: 1px solid var(--border-color);
-          padding-top: 20px;
+          margin-top: 14px;
+          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          padding-top: 14px;
         }
         .network-sim-header {
           display: flex;
           justify-content: space-between;
-          font-weight: 600;
-          font-size: 13px;
-          margin-bottom: 8px;
-        }
-        .network-sim-desc {
           font-size: 12px;
-          color: var(--text-secondary);
-          margin-bottom: 12px;
+          font-weight: 600;
+          margin-bottom: 8px;
+          color: #94a3b8;
         }
+        .network-status.online { color: #10b981; }
+        .network-status.offline { color: #ef4444; }
         .network-toggle-btn {
           width: 100%;
-          padding: 10px;
+          padding: 8px;
           border: none;
-          border-radius: 6px;
+          border-radius: 8px;
           font-weight: 600;
-          font-size: 13px;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        .network-toggle-btn.disconnect { background-color: var(--error-glow); color: var(--error-color); border: 1px solid var(--error-color); }
-        .network-toggle-btn.reconnect { background-color: var(--success-glow); color: var(--success-color); border: 1px solid var(--success-color); }
-        .offline-buffer-badge {
-          margin-top: 10px;
-          background-color: var(--warning-glow);
-          color: var(--warning-color);
-          border: 1px solid var(--warning-color);
-          padding: 8px 12px;
-          border-radius: 6px;
           font-size: 12px;
-          font-weight: 500;
+          cursor: pointer;
         }
-        
-        /* Proposal offer styling */
+        .network-toggle-btn.disconnect { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; }
+        .network-toggle-btn.reconnect { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
+        .offline-buffer-badge {
+          margin-top: 8px;
+          background: rgba(245, 158, 11, 0.15);
+          color: #f59e0b;
+          border: 1px solid #f59e0b;
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-size: 11px;
+        }
+
         .proposal-card {
-          padding: 24px;
-          border-radius: 12px;
-          border: 1px solid var(--primary-color) !important;
+          border: 1px solid #3b82f6;
           animation: pulseProposal 2s infinite;
+          padding: 20px;
+          border-radius: 16px;
         }
         @keyframes pulseProposal {
-          0% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.15); }
-          50% { box-shadow: 0 0 25px rgba(37, 99, 235, 0.35); border-color: rgba(37, 99, 235, 0.6); }
-          100% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.15); }
+          0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+          50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.4); border-color: #60a5fa; }
+          100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
         }
         .proposal-pulse-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 12px;
-        }
-        .proposal-pulse-header h4 {
-          color: var(--secondary-color);
-          font-size: 16px;
-          font-weight: 700;
-        }
-        .countdown-timer {
-          background-color: var(--error-color);
-          color: white;
-          padding: 4px 10px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 700;
-        }
-        .proposal-desc {
-          font-size: 14px;
-          font-weight: 500;
           margin-bottom: 8px;
         }
-        .proposal-sub {
-          font-size: 12px;
-          color: var(--text-secondary);
-          margin-bottom: 16px;
-        }
-        .proposal-actions {
-          display: flex;
-          gap: 10px;
-        }
-        .proposal-actions button {
-          flex: 1;
-          padding: 11px;
-          border: none;
-          border-radius: 6px;
-          font-weight: 600;
-          font-size: 14px;
-          cursor: pointer;
-        }
-        .accept-btn { background-color: var(--success-color); color: white; }
-        .reject-btn { background-color: #374151; color: white; }
-        
-        /* Active task / transit styling */
+        .proposal-pulse-header h4 { color: #60a5fa; font-size: 14px; font-weight: 800; }
+        .countdown-timer { background: #ef4444; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+        .proposal-actions { display: flex; gap: 8px; margin-top: 12px; }
+        .proposal-actions button { flex: 1; padding: 8px; border-radius: 6px; font-weight: 700; font-size: 12px; border: none; cursor: pointer; }
+        .accept-btn { background: #10b981; color: white; }
+        .reject-btn { background: #374151; color: white; }
+
         .active-task-card {
-          padding: 24px;
-          border-radius: 12px;
-        }
-        .active-task-card h4 {
-          font-size: 18px;
-          margin-bottom: 16px;
-          border-bottom: 1px solid var(--border-color);
-          padding-bottom: 10px;
+          padding: 20px;
+          border-radius: 16px;
         }
         .task-details {
-          background-color: rgba(255, 255, 255, 0.02);
-          padding: 16px;
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-          margin-bottom: 20px;
-          font-size: 13px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .task-details code {
-          font-family: monospace;
-          background-color: rgba(0, 0, 0, 0.3);
-          padding: 2px 6px;
-          border-radius: 4px;
-        }
-        .badge-transit {
-          background-color: var(--primary-glow);
-          color: var(--primary-color);
-          border: 1px solid var(--primary-color);
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 10px;
-          font-weight: 700;
-        }
-        .gps-live-box {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 500;
-          color: var(--success-color);
-          margin-top: 4px;
-        }
-        .gps-indicator {
-          width: 8px;
-          height: 8px;
-          background-color: var(--success-color);
-          border-radius: 50%;
-          animation: pulse 1.2s infinite;
+          background-color: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 12px;
+          border-radius: 10px;
+          font-size: 12px;
+          margin-bottom: 14px;
         }
         .confirm-delivery-form {
-          border-top: 1px dashed var(--border-color);
-          padding-top: 16px;
-          margin-bottom: 20px;
-        }
-        .confirm-delivery-form h5 {
-          font-size: 15px;
-          margin-bottom: 6px;
-        }
-        .delivery-instructions {
-          font-size: 12px;
-          color: var(--text-secondary);
-          margin-bottom: 12px;
+          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          padding-top: 12px;
         }
         .confirm-btn {
           width: 100%;
-          background-color: var(--primary-color);
+          background: #3b82f6;
           color: white;
           border: none;
-          padding: 12px;
-          border-radius: 6px;
-          font-weight: 600;
-          font-size: 14px;
-          cursor: pointer;
-          margin-top: 12px;
-          transition: background-color 0.2s;
-        }
-        .confirm-btn:hover { background-color: var(--primary-hover); }
-        .location-logs-container {
-          background-color: rgba(0, 0, 0, 0.2);
-          border: 1px solid var(--border-color);
+          padding: 10px;
           border-radius: 8px;
-          padding: 12px;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          margin-top: 10px;
         }
-        .location-logs-container h6 {
-          font-size: 12px;
-          font-weight: 600;
-          margin-bottom: 8px;
-          color: var(--text-secondary);
-        }
-        .location-logs-list {
-          max-height: 120px;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          font-family: monospace;
-          font-size: 11px;
-        }
-        .log-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 4px 6px;
-          background-color: rgba(255, 255, 255, 0.02);
-          border-radius: 4px;
-        }
-        .log-sent { color: var(--success-color); }
-        .log-buffered { color: var(--warning-color); }
-        .no-logs {
-          color: var(--text-secondary);
-          font-style: italic;
-        }
-        
-        /* Admin tab styles */
-        .admin-drivers-section,
-        .admin-matching-section {
-          padding: 24px;
-          border-radius: 12px;
-        }
-        .admin-instructions {
-          font-size: 12px;
-          color: var(--text-secondary);
-          margin-bottom: 16px;
-        }
-        .drivers-approval-list,
-        .matching-controls-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .driver-approval-row,
-        .matching-row {
+
+        /* Admin panel approval row */
+        .driver-approval-row, .matching-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background-color: rgba(255, 255, 255, 0.02);
-          border: 1px solid var(--border-color);
-          padding: 14px;
-          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 10px 14px;
+          border-radius: 10px;
         }
-        @media (max-width: 600px) {
-          .driver-approval-row,
-          .matching-row {
-            flex-direction: column;
-            gap: 12px;
-            align-items: flex-start;
-          }
-        }
-        .driver-info,
-        .matching-info {
+        .driver-info, .matching-info {
           display: flex;
           flex-direction: column;
-          gap: 4px;
         }
-        .driver-name,
-        .need-title {
-          font-weight: 600;
-          font-size: 14px;
-        }
-        .driver-sub,
-        .need-sub {
-          font-size: 12px;
-          color: var(--text-secondary);
-        }
-        .driver-vehicle {
-          font-size: 12px;
-        }
-        .license-link {
-          font-size: 12px;
-          color: var(--primary-color);
-          text-decoration: underline;
-          margin-top: 4px;
-        }
-        .approve-btn,
-        .match-btn {
-          background-color: var(--primary-color);
-          color: white;
-          border: none;
-          padding: 8px 14px;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        .approve-btn:hover,
-        .match-btn:hover {
-          background-color: var(--primary-hover);
-        }
-        .no-drivers-msg,
-        .no-matching-msg {
-          font-size: 13px;
-          color: var(--text-secondary);
-          text-align: center;
-          font-style: italic;
-          padding: 10px;
-        }
-
-        /* Right panel styles: Needs queue and resources */
+        .driver-name, .need-title { font-weight: 600; font-size: 13px; color: #f8fafc; }
+        .driver-sub { font-size: 11px; color: #94a3b8; }
+        .approve-btn, .match-btn { background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
+        
+        /* Queues & Resource catalogs right panel cards */
         .status-panel {
-          padding: 24px;
+          padding: 20px;
           border-radius: 16px;
         }
         .panel-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 4px;
+          margin-bottom: 12px;
         }
+        .panel-header h3 { font-size: 14px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; }
         .refresh-btn {
           background: none;
-          border: 1px solid var(--border-color);
-          color: var(--text-secondary);
-          width: 32px;
-          height: 32px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: #94a3b8;
+          width: 26px;
+          height: 26px;
           border-radius: 50%;
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          transition: all 0.2s;
-        }
-        .refresh-btn:hover {
-          border-color: var(--text-primary);
-          color: var(--text-primary);
-        }
-        .panel-desc {
           font-size: 12px;
-          color: var(--text-secondary);
-          margin-bottom: 20px;
         }
-        .needs-list {
+
+        .needs-list, .resources-list-box {
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          max-height: 500px;
+          gap: 10px;
+          max-height: 280px;
           overflow-y: auto;
-          padding-right: 4px;
         }
+
         .need-item-card {
-          background-color: rgba(255, 255, 255, 0.02);
-          border: 1px solid var(--border-color);
+          background: rgba(0, 0, 0, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 12px;
           border-radius: 10px;
-          padding: 14px;
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          transition: transform 0.2s, background-color 0.2s;
-        }
-        .need-item-card:hover {
-          transform: translateY(-2px);
-          background-color: rgba(255, 255, 255, 0.04);
-        }
-        .priority-high-border {
-          border: 1px solid rgba(239, 68, 68, 0.4) !important;
-          background-color: rgba(239, 68, 68, 0.02);
-        }
-        .need-card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 11px;
           gap: 6px;
         }
-        .need-location {
-          font-weight: 600;
-          color: var(--text-secondary);
-        }
-        .priority-badge {
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-weight: 700;
-        }
-        .priority-badge.high { background-color: var(--error-glow); color: var(--error-color); border: 1px solid var(--error-color); }
-        .priority-badge.normal { background-color: var(--primary-glow); color: var(--primary-color); border: 1px solid var(--primary-color); }
-        .need-card-desc {
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-        .need-items-list {
-          font-size: 12px;
-          background-color: rgba(0, 0, 0, 0.2);
-          padding: 8px 12px;
-          border-radius: 6px;
-        }
-        .need-items-list ul {
-          margin-top: 4px;
-          padding-left: 16px;
-        }
-        .need-card-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 11px;
-          border-top: 1px solid var(--border-color);
-          padding-top: 8px;
-          margin-top: 4px;
-        }
-        .status-badge-need {
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-weight: 600;
-        }
-        .status-badge-need.PENDING { background-color: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
-        .status-badge-need.ALLOCATED { background-color: var(--warning-glow); color: var(--warning-color); }
-        .status-badge-need.FULFILLED { background-color: var(--success-glow); color: var(--success-color); }
-        .date-tag {
-          color: var(--text-secondary);
-        }
+        .priority-high-border { border-color: rgba(239, 68, 68, 0.3) !important; }
+        .need-card-header { display: flex; justify-content: space-between; font-size: 11px; }
+        .need-location { font-weight: 700; color: #94a3b8; }
+        .priority-badge { font-weight: 800; }
+        .priority-badge.high { color: #f87171; }
+        .priority-badge.normal { color: #60a5fa; }
+        .need-card-desc { font-size: 12px; color: #cbd5e1; line-height: 1.4; }
+        .need-card-footer { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 6px; font-size: 10px; }
         
-        /* Resources list styling */
-        .resources-list-box {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          max-height: 400px;
-          overflow-y: auto;
-          padding-right: 4px;
-        }
         .resource-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 10px 14px;
-          background-color: rgba(255, 255, 255, 0.02);
-          border: 1px solid var(--border-color);
+          padding: 10px 12px;
+          background: rgba(0, 0, 0, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .resource-meta { display: flex; flex-direction: column; }
+        .res-row-name { font-size: 12px; font-weight: 600; color: #f8fafc; }
+        .res-row-category { font-size: 9px; color: #94a3b8; text-transform: uppercase; }
+        .res-row-qty { font-size: 12px; font-weight: 700; color: #fdba74; }
+
+        .empty-panel-msg { font-size: 11px; color: #94a3b8; font-style: italic; text-align: center; padding: 10px 0; }
+        .margin-top { margin-top: 16px; }
+
+        .alert {
+          padding: 10px;
           border-radius: 8px;
-          transition: background-color 0.2s;
-        }
-        .resource-row:hover {
-          background-color: rgba(255, 255, 255, 0.04);
-        }
-        .resource-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .res-row-name {
-          font-size: 13px;
-          font-weight: 600;
-        }
-        .res-row-category {
-          font-size: 10px;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-        }
-        .resource-stock-box {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 2px;
-        }
-        .res-row-qty {
-          font-size: 13px;
-          font-weight: 700;
-          color: var(--secondary-color);
-        }
-        .res-row-exp {
-          font-size: 10px;
-          color: var(--error-color);
-          font-weight: 500;
-        }
-        .empty-panel-msg {
           font-size: 12px;
-          color: var(--text-secondary);
-          text-align: center;
-          font-style: italic;
-          padding: 20px 0;
+          font-weight: 600;
+          margin-bottom: 12px;
         }
-        
-        .margin-top {
-          margin-top: 20px;
+        .alert-warning { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+        .alert-info { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid #3b82f6; }
+        .alert-success { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
+
+        .error-message { color: #ef4444; font-size: 11px; }
+        .success-message { color: #10b981; font-size: 11px; }
+
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        .animate-slide-up { animation: slideUp 0.3s ease-out; }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        .alert-info {
-          background-color: var(--primary-glow);
-          color: var(--primary-color);
-          border: 1px solid var(--primary-color);
+
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
@@ -1635,7 +2749,7 @@ export default function Home() {
           type="button"
           onClick={() => setActiveTab('register')}
           className="login-submit-btn"
-          style={{backgroundColor: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-secondary)'}}
+          style={{backgroundColor: 'transparent', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8'}}
         >
           Crear cuenta nueva
         </button>

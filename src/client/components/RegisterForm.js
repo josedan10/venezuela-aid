@@ -5,29 +5,34 @@ import { useAuth } from '../context/AuthContext';
 
 export default function RegisterForm({ onRegisterSuccess }) {
   const { setDbUser } = useAuth();
-  const [role, setRole] = useState('DONOR'); // DONOR, NGO, DRIVER
+  
+  // Multiple roles state
+  const [selectedRoles, setSelectedRoles] = useState({
+    DONOR: true, // Default
+    DRIVER: false,
+    NGO: false,
+  });
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [rif, setRif] = useState('');
-  
-  // Driver specific fields
-  const [cedula, setCedula] = useState('');
-  const [vehicleDetails, setVehicleDetails] = useState('');
-  const [licensePlate, setLicensePlate] = useState('');
-  const [licenseFile, setLicenseFile] = useState(null);
   
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverMessage, setServerMessage] = useState('');
   const [serverError, setServerError] = useState('');
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setLicenseFile(e.target.files[0]);
-      // Clear specific error
-      setErrors(prev => ({ ...prev, licenseFile: '' }));
-    }
+  const toggleRole = (roleKey) => {
+    setSelectedRoles(prev => {
+      const next = { ...prev, [roleKey]: !prev[roleKey] };
+      // Make sure at least one role is selected
+      const anySelected = Object.values(next).some(val => val);
+      if (!anySelected) {
+        return prev;
+      }
+      return next;
+    });
   };
 
   const validate = () => {
@@ -39,23 +44,6 @@ export default function RegisterForm({ onRegisterSuccess }) {
     else if (password.length < 6) tempErrors.password = 'La contraseña debe tener al menos 6 caracteres.';
     
     if (!name) tempErrors.name = 'El nombre es obligatorio.';
-
-    if (role === 'DONOR' || role === 'NGO') {
-      if (!rif) tempErrors.rif = 'El RIF es obligatorio para registrarse como ONG o Donante.';
-    }
-
-    if (role === 'DRIVER') {
-      if (!cedula) tempErrors.cedula = 'La cédula es obligatoria.';
-      if (!vehicleDetails) tempErrors.vehicleDetails = 'La descripción del vehículo es obligatoria.';
-      if (!licensePlate) {
-        tempErrors.licensePlate = 'La placa del vehículo es obligatoria.';
-      } else if (!/^[A-Z0-9-]{6,10}$/.test(licensePlate.toUpperCase())) {
-        tempErrors.licensePlate = 'El formato de la placa no es válido (ej. AB123CD o A123BCD, 6-10 caracteres).';
-      }
-      if (!licenseFile) {
-        tempErrors.licenseFile = 'La licencia de conducir es obligatoria para registrarse como conductor.';
-      }
-    }
 
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
@@ -70,6 +58,10 @@ export default function RegisterForm({ onRegisterSuccess }) {
 
     setLoading(true);
 
+    const rolesList = Object.keys(selectedRoles)
+      .filter(key => selectedRoles[key])
+      .join(',');
+
     try {
       // 1. Create in Firebase
       const firebaseUserCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -80,21 +72,11 @@ export default function RegisterForm({ onRegisterSuccess }) {
         firebaseId,
         email,
         name,
-        role,
+        roles: rolesList,
       };
 
-      if (role === 'DONOR' || role === 'NGO') {
+      if (rif && (selectedRoles.NGO || selectedRoles.DONOR)) {
         payload.rif = rif;
-      }
-
-      if (role === 'DRIVER') {
-        // In a real app we'd upload the file first. Here we mock licenseDocUrl
-        payload.driverDetails = {
-          cedula,
-          vehicleDetails,
-          licensePlate: licensePlate.toUpperCase(),
-          licenseDocUrl: licenseFile ? `/uploads/licenses/${licenseFile.name}` : '',
-        };
       }
 
       // 2. Register in NestJS Backend
@@ -114,14 +96,12 @@ export default function RegisterForm({ onRegisterSuccess }) {
           throw new Error(data.message || 'Error en el registro del backend');
         }
       } catch (backendErr) {
-        // Cleanup Firebase User if database register fails to avoid orphans
         await firebaseUser.delete();
         throw backendErr;
       }
 
       setServerMessage(data.message || 'Registro completado exitosamente.');
       
-      // Update local context dbUser immediately
       if (setDbUser) {
         setDbUser(data.user);
       }
@@ -131,13 +111,11 @@ export default function RegisterForm({ onRegisterSuccess }) {
       setPassword('');
       setName('');
       setRif('');
-      setCedula('');
-      setVehicleDetails('');
-      setLicensePlate('');
-      setLicenseFile(null);
-      // Reset file input element visually
-      const fileInput = document.getElementById('license-file');
-      if (fileInput) fileInput.value = '';
+      setSelectedRoles({
+        DONOR: true,
+        DRIVER: false,
+        NGO: false,
+      });
 
       if (onRegisterSuccess) {
         setTimeout(() => {
@@ -153,41 +131,42 @@ export default function RegisterForm({ onRegisterSuccess }) {
   };
 
   return (
-    <div className="form-card">
-      <h2>Crear Cuenta</h2>
-      <p className="form-subtitle">Regístrese en la plataforma de ayuda humanitaria</p>
+    <div className="register-form-container glass-card">
+      <h3 className="form-title">Crear Cuenta</h3>
+      <p className="form-subtitle">Únase a la red nacional de ayuda humanitaria</p>
 
       <form onSubmit={handleSubmit} noValidate>
-        <div className="role-selector">
+        <label className="field-label">Seleccione sus roles (puede elegir varios) *</label>
+        <div className="role-selector-grid">
           <button
             type="button"
-            className={role === 'DONOR' ? 'active' : ''}
-            onClick={() => { setRole('DONOR'); setErrors({}); }}
+            className={selectedRoles.DONOR ? 'active' : ''}
+            onClick={() => toggleRole('DONOR')}
           >
-            Donante
+            Donante {selectedRoles.DONOR && '✓'}
           </button>
           <button
             type="button"
-            className={role === 'NGO' ? 'active' : ''}
-            onClick={() => { setRole('NGO'); setErrors({}); }}
+            className={selectedRoles.NGO ? 'active' : ''}
+            onClick={() => toggleRole('NGO')}
           >
-            ONG / Beneficiario
+            ONG {selectedRoles.NGO && '✓'}
           </button>
           <button
             type="button"
-            className={role === 'DRIVER' ? 'active' : ''}
-            onClick={() => { setRole('DRIVER'); setErrors({}); }}
+            className={selectedRoles.DRIVER ? 'active' : ''}
+            onClick={() => toggleRole('DRIVER')}
           >
-            Conductor
+            Conductor {selectedRoles.DRIVER && '✓'}
           </button>
         </div>
 
         <div className="input-group">
-          <label htmlFor="reg-name">Nombre Completo o Razón Social *</label>
+          <label htmlFor="reg-name">Nombre Completo o Institución *</label>
           <input
             id="reg-name"
             type="text"
-            placeholder="Ej. Juan Pérez o Fundación Simón Bolívar"
+            placeholder="Ej. Juan Pérez o Fundación Bolívar"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={errors.name ? 'input-error' : ''}
@@ -221,73 +200,22 @@ export default function RegisterForm({ onRegisterSuccess }) {
           {errors.password && <span className="error-message">{errors.password}</span>}
         </div>
 
-        {(role === 'DONOR' || role === 'NGO') && (
-          <div className="input-group">
-            <label htmlFor="reg-rif">RIF (Registro de Información Fiscal) *</label>
+        {(selectedRoles.DONOR || selectedRoles.NGO) && (
+          <div className="input-group animate-fade-in">
+            <label htmlFor="reg-rif">RIF (Opcional)</label>
             <input
               id="reg-rif"
               type="text"
               placeholder="Ej. J-12345678-9"
               value={rif}
               onChange={(e) => setRif(e.target.value)}
-              className={errors.rif ? 'input-error' : ''}
             />
-            {errors.rif && <span className="error-message">{errors.rif}</span>}
           </div>
         )}
 
-        {role === 'DRIVER' && (
-          <div className="driver-fields">
-            <div className="input-group">
-              <label htmlFor="driver-cedula">Cédula de Identidad *</label>
-              <input
-                id="driver-cedula"
-                type="text"
-                placeholder="Ej. V-12345678"
-                value={cedula}
-                onChange={(e) => setCedula(e.target.value)}
-                className={errors.cedula ? 'input-error' : ''}
-              />
-              {errors.cedula && <span className="error-message">{errors.cedula}</span>}
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="driver-vehicle">Descripción del Vehículo *</label>
-              <input
-                id="driver-vehicle"
-                type="text"
-                placeholder="Ej. Camión Ford Cargo 2012 blanco"
-                value={vehicleDetails}
-                onChange={(e) => setVehicleDetails(e.target.value)}
-                className={errors.vehicleDetails ? 'input-error' : ''}
-              />
-              {errors.vehicleDetails && <span className="error-message">{errors.vehicleDetails}</span>}
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="driver-plate">Placa del Vehículo *</label>
-              <input
-                id="driver-plate"
-                type="text"
-                placeholder="Ej. AA123BB"
-                value={licensePlate}
-                onChange={(e) => setLicensePlate(e.target.value)}
-                className={errors.licensePlate ? 'input-error' : ''}
-              />
-              {errors.licensePlate && <span className="error-message">{errors.licensePlate}</span>}
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="license-file">Licencia de Conducir (Imagen/PDF) *</label>
-              <input
-                id="license-file"
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={handleFileChange}
-                className={errors.licenseFile ? 'input-error' : ''}
-              />
-              {errors.licenseFile && <span className="error-message">{errors.licenseFile}</span>}
-            </div>
+        {selectedRoles.DRIVER && (
+          <div className="driver-info-badge animate-fade-in">
+            🚚 Como Conductor, podrás detallar tu vehículo y placa desde el panel de usuario más tarde para comenzar a transportar insumos.
           </div>
         )}
 
@@ -295,133 +223,138 @@ export default function RegisterForm({ onRegisterSuccess }) {
         {serverError && <div className="alert alert-error">{serverError}</div>}
 
         <button type="submit" className="submit-btn" disabled={loading}>
-          {loading ? 'Procesando...' : 'Registrarse'}
+          {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
         </button>
       </form>
 
       <style jsx>{`
-        .form-card {
-          background: var(--bg-card);
-          border: 1px solid var(--border-color);
-          border-radius: 16px;
-          padding: 32px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-          backdrop-filter: blur(10px);
-          max-width: 500px;
-          margin: 0 auto;
+        .register-form-container {
+          padding: 24px;
+          border-radius: 14px;
+          background: rgba(15, 23, 42, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.06);
         }
-        @media (max-width: 480px) {
-          .form-card {
-            padding: 20px;
-          }
-        }
-        h2 {
-          font-size: 24px;
-          margin-bottom: 6px;
-          color: var(--text-primary);
+        .form-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: #f8fafc;
+          margin-bottom: 4px;
           text-align: center;
         }
         .form-subtitle {
-          color: var(--text-secondary);
-          font-size: 14px;
+          font-size: 12px;
+          color: #94a3b8;
           text-align: center;
-          margin-bottom: 24px;
+          margin-bottom: 20px;
         }
-        .role-selector {
+        .field-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 500;
+          color: #cbd5e1;
+          margin-bottom: 8px;
+        }
+        .role-selector-grid {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
           gap: 8px;
-          background-color: var(--bg-body);
-          padding: 4px;
-          border-radius: 10px;
-          margin-bottom: 24px;
-          border: 1px solid var(--border-color);
+          margin-bottom: 20px;
         }
-        .role-selector button {
-          background: none;
-          border: none;
-          padding: 10px 6px;
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--text-secondary);
+        .role-selector-grid button {
+          padding: 10px 4px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #94a3b8;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.05);
           border-radius: 8px;
           cursor: pointer;
-          transition: background-color 0.2s, color 0.2s;
+          transition: all 0.2s;
         }
-        .role-selector button.active {
-          background-color: var(--primary-color);
-          color: white;
-          box-shadow: 0 4px 12px var(--primary-glow);
+        .role-selector-grid button:hover {
+          color: #f8fafc;
+          background: rgba(255, 255, 255, 0.07);
+        }
+        .role-selector-grid button.active {
+          background-color: #3b82f6;
+          border-color: #3b82f6;
+          color: #ffffff;
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         }
         .input-group {
           display: flex;
           flex-direction: column;
           gap: 6px;
-          margin-bottom: 18px;
+          margin-bottom: 16px;
         }
-        label {
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text-secondary);
+        .input-group label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #cbd5e1;
         }
-        input[type="text"],
-        input[type="email"],
-        input[type="password"] {
-          padding: 12px 14px;
+        input {
+          padding: 11px 13px;
           border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-body);
-          color: var(--text-primary);
-          font-size: 14px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background-color: rgba(0, 0, 0, 0.3);
+          color: #f8fafc;
+          font-size: 13px;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
         }
         input:focus {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px var(--primary-glow);
-        }
-        input[type="file"] {
-          font-size: 14px;
-          color: var(--text-secondary);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
         }
         .input-error {
-          border-color: var(--error-color) !important;
+          border-color: #ef4444 !important;
         }
         .error-message {
-          color: var(--error-color);
-          font-size: 12px;
+          color: #f87171;
+          font-size: 11px;
+        }
+        .driver-info-badge {
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid rgba(59, 130, 246, 0.2);
+          color: #93c5fd;
+          font-size: 11px;
+          line-height: 1.4;
+          padding: 10px 12px;
+          border-radius: 8px;
+          margin-bottom: 16px;
         }
         .alert {
-          padding: 12px;
+          padding: 10px 12px;
           border-radius: 8px;
-          font-size: 14px;
-          margin-bottom: 18px;
-          font-weight: 500;
+          font-size: 12px;
+          margin-bottom: 16px;
+          font-weight: 600;
+          text-align: center;
         }
         .alert-success {
-          background-color: var(--success-glow);
-          color: var(--success-color);
-          border: 1px solid var(--success-color);
+          background: rgba(16, 185, 129, 0.15);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .alert-error {
-          background-color: var(--error-glow);
-          color: var(--error-color);
-          border: 1px solid var(--error-color);
+          background: rgba(239, 68, 68, 0.15);
+          color: #f87171;
+          border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .submit-btn {
           width: 100%;
-          background-color: var(--primary-color);
-          color: white;
+          background-color: #3b82f6;
+          color: #ffffff;
           border: none;
-          padding: 14px;
+          padding: 12px;
           border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
+          font-size: 14px;
+          font-weight: 700;
           cursor: pointer;
           transition: background-color 0.2s, transform 0.1s;
         }
         .submit-btn:hover:not(:disabled) {
-          background-color: var(--primary-hover);
+          background-color: #2563eb;
         }
         .submit-btn:active:not(:disabled) {
           transform: scale(0.98);
@@ -430,11 +363,11 @@ export default function RegisterForm({ onRegisterSuccess }) {
           opacity: 0.7;
           cursor: not-allowed;
         }
-        .driver-fields {
-          animation: fadeIn 0.3s ease-out;
+        .animate-fade-in {
+          animation: fadeIn 0.25s ease-out;
         }
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(5px); }
+          from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>

@@ -3,7 +3,8 @@ import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
-import { Role, DriverStatus } from '@prisma/client';
+import { DriverStatus } from '@prisma/client';
+import { Role } from './role.enum';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('UsersService', () => {
@@ -18,6 +19,7 @@ describe('UsersService', () => {
     },
     driverDetails: {
       findUnique: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
     },
   };
@@ -43,50 +45,22 @@ describe('UsersService', () => {
   });
 
   describe('register', () => {
-    it('should successfully register a driver with PENDING_APPROVAL status', async () => {
+    it('should successfully register a user with roles', async () => {
       const dto: RegisterDto = {
         firebaseId: 'test-firebase-uid',
         email: 'driver@test.com',
         name: 'Juan Pérez',
-        role: Role.DRIVER,
-        driverDetails: {
-          cedula: 'V-12345678',
-          vehicleDetails: 'Moto Empire Keeway',
-          licensePlate: 'AA11BB',
-          licenseDocUrl: 'https://storage.local/license.jpg',
-        },
+        roles: 'DRIVER,DONOR',
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.driverDetails.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'driver-id-123' });
 
       const result = await service.register(dto);
 
-      expect(result.message).toBe('Registro completado. Su cuenta está en revisión.');
+      expect(result.message).toBe('Registro completado exitosamente.');
       expect(result.userId).toBe('driver-id-123');
       expect(prisma.user.create).toHaveBeenCalled();
-    });
-
-    it('should throw BadRequestException if driver licenseDocUrl is missing', async () => {
-      const dto: RegisterDto = {
-        firebaseId: 'test-firebase-uid',
-        email: 'driver@test.com',
-        name: 'Juan Pérez',
-        role: Role.DRIVER,
-        driverDetails: {
-          cedula: 'V-12345678',
-          vehicleDetails: 'Moto Empire Keeway',
-          licensePlate: 'AA11BB',
-          licenseDocUrl: '', // Missing
-        },
-      };
-
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.register(dto)).rejects.toThrow(
-        new BadRequestException('La licencia de conducir es obligatoria para registrarse como conductor.'),
-      );
     });
 
     it('should successfully register an NGO and append RIF to name', async () => {
@@ -94,7 +68,7 @@ describe('UsersService', () => {
         firebaseId: 'ngo-firebase-uid',
         email: 'ngo@test.com',
         name: 'Cáritas Venezuela',
-        role: Role.NGO,
+        roles: 'NGO',
         rif: 'J-123456789-0',
       };
 
@@ -110,7 +84,63 @@ describe('UsersService', () => {
           firebaseId: dto.firebaseId,
           email: dto.email,
           name: 'Cáritas Venezuela (J-123456789-0)',
-          role: Role.NGO,
+          roles: 'NGO',
+        },
+      });
+    });
+  });
+
+  describe('completeDriverProfile', () => {
+    it('should successfully complete driver profile and set status to PENDING_APPROVAL', async () => {
+      const mockUser = {
+        id: 'driver-id-123',
+        roles: 'DRIVER',
+        driverDetails: null,
+      };
+      const details = {
+        cedula: 'V-12345678',
+        vehicleDetails: 'Toyota Hilux',
+        licensePlate: 'ABC12D',
+        licenseDocUrl: 'https://storage.local/license.pdf',
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.driverDetails.findUnique.mockResolvedValue(null);
+      mockPrisma.driverDetails.create.mockResolvedValue({});
+
+      const result = await service.completeDriverProfile('driver-id-123', details);
+
+      expect(result.message).toBe('Perfil de conductor actualizado y enviado para revisión del administrador.');
+      expect(prisma.driverDetails.create).toHaveBeenCalled();
+    });
+
+    it('should successfully complete driver profile without a licenseDocUrl', async () => {
+      const mockUser = {
+        id: 'driver-id-123',
+        roles: 'DRIVER',
+        driverDetails: null,
+      };
+      const details = {
+        cedula: 'V-87654321',
+        vehicleDetails: 'Ford Fiesta',
+        licensePlate: 'DEF34G',
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.driverDetails.findUnique.mockResolvedValue(null);
+      mockPrisma.driverDetails.create.mockResolvedValue({});
+
+      const result = await service.completeDriverProfile('driver-id-123', details);
+
+      expect(result.message).toBe('Perfil de conductor actualizado y enviado para revisión del administrador.');
+      expect(prisma.driverDetails.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'driver-id-123',
+          cedula: 'V-87654321',
+          vehicleDetails: 'Ford Fiesta',
+          licensePlate: 'DEF34G',
+          licenseDocUrl: null,
+          status: DriverStatus.PENDING_APPROVAL,
         },
       });
     });
@@ -121,7 +151,7 @@ describe('UsersService', () => {
       const driverId = 'driver-id-123';
       const mockDriver = {
         id: driverId,
-        role: Role.DRIVER,
+        roles: 'DRIVER',
         driverDetails: { status: DriverStatus.PENDING_APPROVAL },
       };
 
@@ -154,7 +184,7 @@ describe('UsersService', () => {
       const driverId = 'driver-id-123';
       const mockDriver = {
         id: driverId,
-        role: Role.DRIVER,
+        roles: 'DRIVER',
         driverDetails: { status: DriverStatus.VERIFIED },
       };
 
@@ -172,7 +202,7 @@ describe('UsersService', () => {
       const driverId = 'driver-id-123';
       const mockDriver = {
         id: driverId,
-        role: Role.DRIVER,
+        roles: 'DRIVER',
         driverDetails: { status: DriverStatus.PENDING_APPROVAL },
       };
 

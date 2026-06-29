@@ -29,4 +29,4 @@ RUN npm prune --omit=dev --ignore-scripts
 
 EXPOSE 5001
 
-CMD ["node", "dist/src/backend/main.js"]
+CMD ["node", "dist/main.js"]
