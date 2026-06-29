@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -41,12 +41,14 @@ export class FirebaseAuthGuard implements CanActivate {
           request.user = null;
           return true;
         }
-        throw new UnauthorizedException('User not registered in database.');
+        throw new NotFoundException('User not registered in database.');
       }
 
       request.user = user;
       return true;
     } catch (error: any) {
+      // Re-throw NestJS HTTP exceptions (e.g. NotFoundException) as-is
+      if (error?.status) throw error;
       throw new UnauthorizedException(error.message || 'Unauthorized');
     }
   }

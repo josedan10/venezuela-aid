@@ -81,13 +81,15 @@ export const AuthProvider = ({ children }) => {
         setToken(idToken);
         localStorage.setItem('firebase:token', idToken);
 
-        // Fetch DB user profile — retry up to 3 times with backoff in case
-        // the token is still being validated by the backend after a fresh login.
+        // Fetch DB user profile.
+        // - 200: success, store profile.
+        // - 401: token may not be propagated yet → force-refresh and retry (up to 2 extra attempts).
+        // - 404: Firebase user exists but has no DB account yet (e.g. mid-registration) → silent, don't retry.
+        // - other: unexpected, bail silently.
         let data = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 800));
-            console.log(`AuthContext: Syncing user profile (attempt ${attempt + 1})`);
             const response = await fetch(`${API_URL}/users/me`, {
               headers: { Authorization: `Bearer ${idToken}` },
             });
@@ -95,14 +97,13 @@ export const AuthProvider = ({ children }) => {
               data = await response.json();
               break;
             } else if (response.status === 401 && attempt < 2) {
-              // Token may not be propagated yet — refresh and retry
+              // Real token rejection — force-refresh and retry
               const freshToken = await firebaseUser.getIdToken(true);
               idToken = freshToken;
               setToken(freshToken);
               localStorage.setItem('firebase:token', freshToken);
-              console.warn(`AuthContext: 401 on attempt ${attempt + 1}, retrying with fresh token`);
             } else {
-              console.warn('AuthContext: Profile sync failed', response.status);
+              // 404 = not in DB yet (new user), or unrecoverable error → stop silently
               break;
             }
           } catch (err) {
@@ -111,7 +112,6 @@ export const AuthProvider = ({ children }) => {
           }
         }
         if (data) {
-          console.log('AuthContext: Profile sync success', data.user.email);
           setDbUser(data.user);
           localStorage.setItem('firebase:dbUser', JSON.stringify(data.user));
         } else {
