@@ -67,8 +67,22 @@ export default function Home() {
   const [teamName, setTeamName] = useState('');
   const [teamDesc, setTeamDesc] = useState('');
   const [teamSharing, setTeamSharing] = useState(false);
-  const [mapStyle, setMapStyle] = useState('light'); // default to light style
+  const [mapStyle, setMapStyle] = useState('light');
   const [selectedPoint, setSelectedPoint] = useState(null);
+
+  const UI_PREFS_KEY = 'ayudavz-ui-prefs';
+  const LIST_PANEL_IDS = [
+    'urgency-queue',
+    'available-inventory',
+    'donor-resources',
+    'driver-nearby-needs',
+    'admin-pending-drivers',
+    'admin-fleet',
+    'admin-matching',
+    'selected-point',
+    'team-members',
+    'available-teams',
+  ];
 
   // Complete Driver Profile form fields
   const [driverCedula, setDriverCedula] = useState('');
@@ -265,6 +279,48 @@ export default function Home() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isMounted || typeof window === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}');
+      if (saved.mapStyle) setMapStyle(saved.mapStyle);
+      if (typeof saved.showPanels === 'boolean') setShowPanels(saved.showPanels);
+      if (typeof saved.leftMinimized === 'boolean') setLeftMinimized(saved.leftMinimized);
+      if (typeof saved.rightMinimized === 'boolean') setRightMinimized(saved.rightMinimized);
+      if (saved.collapsedPanels && typeof saved.collapsedPanels === 'object') {
+        setCollapsedPanels(saved.collapsedPanels);
+      }
+    } catch (e) {
+      console.warn('No se pudieron cargar preferencias de UI:', e);
+    }
+  }, [isMounted]);
+
+  useEffect(() => {
+    if (!isMounted || typeof window === 'undefined') return;
+    localStorage.setItem(
+      UI_PREFS_KEY,
+      JSON.stringify({
+        mapStyle,
+        showPanels,
+        leftMinimized,
+        rightMinimized,
+        collapsedPanels,
+      }),
+    );
+  }, [isMounted, mapStyle, showPanels, leftMinimized, rightMinimized, collapsedPanels]);
+
+  const handleCollapseAllLists = () => {
+    const next = {};
+    LIST_PANEL_IDS.forEach((id) => {
+      next[id] = true;
+    });
+    setCollapsedPanels(next);
+  };
+
+  const handleExpandAllLists = () => {
+    setCollapsedPanels({});
+  };
 
   useEffect(() => {
     refreshResources();
@@ -1413,29 +1469,25 @@ export default function Home() {
       {/* FLOATING ACTION OVERLAY CONTROLLER */}
       <div className="floating-ui-container">
         
-        {/* Bottom controls panel holding the UI toggler and Map Style selector */}
+        {/* Bottom controls — minimal map chrome */}
         <div className="bottom-controls-bar glass animate-fade-in">
-          <button 
+          <button
             className="toggle-ui-btn"
             onClick={() => setShowPanels(!showPanels)}
-            title={showPanels ? "Ocultar Paneles de Datos" : "Mostrar Paneles de Datos"}
+            title={showPanels ? 'Ocultar paneles y ver solo el mapa' : 'Mostrar paneles de control'}
           >
-            {showPanels ? 'Ocultar UI ✕' : 'Mostrar Control UI 👁️'}
+            {showPanels ? 'Solo mapa ✕' : 'Mostrar paneles 👁️'}
           </button>
-          
-          <div className="map-style-selector">
-            <span className="style-label">Mapa:</span>
-            <select
-              value={mapStyle}
-              onChange={(e) => setMapStyle(e.target.value)}
-              className="map-style-select"
+          {currentUser && (
+            <button
+              type="button"
+              className="toggle-ui-btn profile-shortcut-btn"
+              onClick={() => setShowProfileModal(true)}
+              title="Configuración y perfil"
             >
-              <option value="light">Claro ☀️</option>
-              <option value="dark">Oscuro 🌙</option>
-              <option value="classic">Estándar 🗺️</option>
-              <option value="satellite">Satélite 🛰️</option>
-            </select>
-          </div>
+              ⚙️ Perfil
+            </button>
+          )}
         </div>
 
         {showPanels && (
@@ -1898,36 +1950,6 @@ export default function Home() {
                                 )}
                               </div>
 
-                              {/* Driver Alert Radius & GPS Sharing Settings */}
-                              <div className="driver-settings-card glass-card">
-                                <h4>⚙️ Ajustes del Conductor</h4>
-                                
-                                <div className="setting-row">
-                                  <label>Rastreo y Compartición de Ubicación (GPS):</label>
-                                  <button
-                                    onClick={toggleGpsSharing}
-                                    type="button"
-                                    className={`toggle-btn ${driverGpsSharing ? 'online' : 'offline'}`}
-                                  >
-                                    {driverGpsSharing ? '🟢 Transmitiendo GPS' : '🔴 GPS Detenido'}
-                                  </button>
-                                </div>
-
-                                <div className="setting-row" style={{ marginTop: '14px' }}>
-                                  <label>Radio de Cobertura para Alertas: <strong>{driverRadius} km</strong></label>
-                                  <input
-                                    type="range"
-                                    min="1"
-                                    max="50"
-                                    value={driverRadius}
-                                    onChange={(e) => handleDriverRadiusChange(parseInt(e.target.value))}
-                                    className="radius-range-slider"
-                                  />
-                                  <p className="setting-hint">Solo recibirá alertas y despachos dentro de este radio desde el punto de origen.</p>
-                                </div>
-                              </div>
-
-                              {/* Needs in Range Alerts list */}
                               <CollapsiblePanel
                                 className="nearby-needs-card glass-card"
                                 title={`🔔 Alertas Cercanas (${driverRadius} km)`}
@@ -2190,17 +2212,9 @@ export default function Home() {
                             {myTeam.team.description && (
                               <p className="team-description">{myTeam.team.description}</p>
                             )}
-                            
-                            <div className="team-sharing-control">
-                              <label className="checkbox-label location-sharing-switch">
-                                <input
-                                  type="checkbox"
-                                  checked={teamSharing}
-                                  onChange={handleToggleSharing}
-                                />
-                                📡 Compartir mi ubicación en tiempo real con el equipo
-                              </label>
-                            </div>
+                            <p className="profile-setting-hint team-sharing-hint">
+                              Compartir ubicación con el equipo: configuración en ⚙️ Perfil.
+                            </p>
 
                             <CollapsiblePanel
                               className="nested"
@@ -2529,11 +2543,107 @@ export default function Home() {
             </form>
 
             <div className="profile-modal-section">
+              <h4>🗺️ Pantalla y mapa</h4>
+              <div className="profile-setting-row">
+                <label htmlFor="prof-map-style">Estilo del mapa</label>
+                <select
+                  id="prof-map-style"
+                  className="profile-select"
+                  value={mapStyle}
+                  onChange={(e) => setMapStyle(e.target.value)}
+                >
+                  <option value="light">Claro ☀️</option>
+                  <option value="dark">Oscuro 🌙</option>
+                  <option value="classic">Estándar 🗺️</option>
+                  <option value="satellite">Satélite 🛰️</option>
+                </select>
+              </div>
+              <label className="profile-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={showPanels}
+                  onChange={(e) => setShowPanels(e.target.checked)}
+                />
+                Mostrar paneles de control sobre el mapa
+              </label>
+              <label className="profile-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={!leftMinimized}
+                  onChange={(e) => setLeftMinimized(!e.target.checked)}
+                />
+                Panel izquierdo expandido
+              </label>
+              <label className="profile-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={!rightMinimized}
+                  onChange={(e) => setRightMinimized(!e.target.checked)}
+                />
+                Panel derecho expandido
+              </label>
+              <div className="profile-inline-actions">
+                <button type="button" className="profile-secondary-btn" onClick={handleCollapseAllLists}>
+                  Colapsar listas
+                </button>
+                <button type="button" className="profile-secondary-btn" onClick={handleExpandAllLists}>
+                  Expandir listas
+                </button>
+              </div>
+              <p className="profile-setting-hint">
+                Oculte los paneles con «Solo mapa» abajo a la izquierda para una vista limpia. La configuración siempre está aquí.
+              </p>
+            </div>
+
+            {userRoles.includes('DRIVER') && currentUser.driverDetails && (
+              <div className="profile-modal-section">
+                <h4>🚗 Conductor</h4>
+                <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
+                <div className="profile-setting-row">
+                  <label>GPS en tiempo real</label>
+                  <button
+                    type="button"
+                    onClick={toggleGpsSharing}
+                    className={`toggle-btn ${driverGpsSharing ? 'online' : 'offline'}`}
+                  >
+                    {driverGpsSharing ? '🟢 Activo' : '🔴 Detenido'}
+                  </button>
+                </div>
+                <div className="profile-setting-row">
+                  <label>Radio de alertas: <strong>{driverRadius} km</strong></label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    value={driverRadius}
+                    onChange={(e) => handleDriverRadiusChange(parseInt(e.target.value, 10))}
+                    className="radius-range-slider"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="profile-team-link-btn"
+                  onClick={() => { setShowProfileModal(false); setActiveTab('driver'); }}
+                >
+                  Ir a panel de conductor →
+                </button>
+              </div>
+            )}
+
+            <div className="profile-modal-section">
               <h4>👥 Mi Equipo</h4>
               {myTeam?.inTeam ? (
                 <div className="profile-team-info">
                   <span className="profile-team-name">{myTeam.team.name}</span>
                   <span className="profile-team-members">{myTeam.team.members.length} miembro(s)</span>
+                  <label className="profile-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={teamSharing}
+                      onChange={handleToggleSharing}
+                    />
+                    Compartir mi ubicación con el equipo
+                  </label>
                   <button type="button" onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
                     Ver Equipo →
                   </button>
@@ -3942,7 +4052,9 @@ export default function Home() {
         .profile-modal {
           pointer-events: auto;
           width: 100%;
-          max-width: 420px;
+          max-width: 440px;
+          max-height: min(90vh, 720px);
+          overflow-y: auto;
           border-radius: 20px;
           padding: 24px;
           background: rgba(15, 23, 42, 0.97);
@@ -4070,6 +4182,67 @@ export default function Home() {
           text-align: left;
         }
         .profile-team-link-btn:hover { background: rgba(59,130,246,0.2); }
+
+        .profile-setting-row {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .profile-setting-row label {
+          font-size: 12px;
+          color: #94a3b8;
+          font-weight: 600;
+        }
+        .profile-select {
+          width: 100%;
+          padding: 10px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(0, 0, 0, 0.25);
+          color: #f8fafc;
+          font-size: 13px;
+        }
+        .profile-checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: #cbd5e1;
+          margin-bottom: 8px;
+          cursor: pointer;
+        }
+        .profile-inline-actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+        .profile-secondary-btn {
+          flex: 1;
+          padding: 8px 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.04);
+          color: #cbd5e1;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .profile-secondary-btn:hover {
+          background: rgba(255, 255, 255, 0.08);
+          color: #f8fafc;
+        }
+        .profile-setting-hint {
+          font-size: 11px;
+          color: #64748b;
+          margin: 10px 0 0;
+          line-height: 1.4;
+        }
+        .profile-shortcut-btn {
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          padding-left: 12px;
+          margin-left: 4px;
+        }
         .tab-dot {
           color: #f59e0b;
           font-size: 8px;
