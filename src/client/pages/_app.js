@@ -19,22 +19,22 @@ function MyApp({ Component, pageProps }) {
         <div className="header-container">
           <div className="logo-section">
             <span className="logo-icon">🇻🇪</span>
-            <span className="logo-text">Ayuda<span className="logo-accent">Venezuela</span></span>
+            <span className="logo-text text-slate-900">Venezuela <span className="text-blue-600">Reporta</span></span>
           </div>
-          <div className="badge-section">
-            <span className="badge-dot"></span>
-            <span className="badge-text">Canales de Coordinación Crítica</span>
+          <div className="badge-section bg-blue-50 border border-blue-200">
+            <span className="badge-dot bg-blue-600"></span>
+            <span className="badge-text text-blue-700 font-semibold">Coordinación en Tiempo Real</span>
           </div>
         </div>
       </header>
 
-      <main className="app-content container animate-slide-up">
+      <main className="app-content w-full max-w-full px-2 sm:px-4 md:px-8 mx-auto animate-slide-up">
         <Component {...pageProps} />
       </main>
 
-      <footer className="app-footer">
+      <footer className="app-footer bg-white border-t border-slate-200">
         <div className="footer-container">
-          <p>© {new Date().getFullYear()} AyudaVenezuela. Coordinación humanitaria en tiempo real y offline.</p>
+          <p className="text-slate-500 text-xs sm:text-sm">© {new Date().getFullYear()} Venezuela Reporta / AyudaVenezuela. Coordinación humanitaria en tiempo real y offline.</p>
           <div className="venezuela-strip">
             <span className="yellow-strip"></span>
             <span className="blue-strip"></span>
@@ -48,14 +48,17 @@ function MyApp({ Component, pageProps }) {
           position: sticky;
           top: 0;
           z-index: 100;
-          border-radius: 0 0 16px 16px !important;
-          border-top: none !important;
-          margin-bottom: 24px;
+          background: rgba(255, 255, 255, 0.95);
+          border-bottom: 1px solid #e2e8f0;
+          margin-bottom: 20px;
+          backdrop-filter: blur(12px);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .header-container {
-          max-width: 1200px;
+          width: 100%;
+          max-width: 100%;
           margin: 0 auto;
-          padding: 16px 24px;
+          padding: 14px 24px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -74,60 +77,48 @@ function MyApp({ Component, pageProps }) {
           cursor: pointer;
         }
         .logo-icon {
-          font-size: 28px;
+          font-size: 26px;
         }
         .logo-text {
           font-size: 20px;
           font-weight: 800;
           letter-spacing: -0.5px;
-          color: var(--text-primary);
-        }
-        .logo-accent {
-          color: var(--secondary-color);
+          color: #0f172a;
         }
         .badge-section {
           display: flex;
           align-items: center;
           gap: 8px;
-          background-color: rgba(37, 99, 235, 0.1);
-          border: 1px solid rgba(37, 99, 235, 0.25);
-          padding: 6px 12px;
+          padding: 6px 14px;
           border-radius: 20px;
         }
         .badge-dot {
           width: 8px;
           height: 8px;
-          background-color: var(--success-color);
           border-radius: 50%;
-          box-shadow: 0 0 8px var(--success-color);
+          box-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
           animation: pulse 1.5s infinite;
         }
         .badge-text {
           font-size: 12px;
-          font-weight: 600;
-          color: var(--text-primary);
         }
         .app-content {
           padding-bottom: 60px;
+          width: 100%;
         }
         .app-footer {
           margin-top: auto;
-          padding: 30px 20px;
-          border-top: 1px solid var(--border-color);
+          padding: 24px 20px;
           text-align: center;
-          background-color: rgba(9, 13, 22, 0.9);
         }
         .footer-container {
-          max-width: 1200px;
+          width: 100%;
+          max-width: 100%;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 16px;
-        }
-        .app-footer p {
-          color: var(--text-secondary);
-          font-size: 13px;
+          gap: 14px;
         }
         .venezuela-strip {
           display: flex;

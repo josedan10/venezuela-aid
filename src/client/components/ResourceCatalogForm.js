@@ -225,8 +225,8 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
         }
         label {
           font-size: 13px;
-          font-weight: 500;
-          color: var(--text-secondary);
+          font-weight: 600;
+          color: #334155;
         }
         input[type="text"],
         input[type="number"],
@@ -234,24 +234,26 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
         select {
           padding: 11px 14px;
           border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-body);
-          color: var(--text-primary);
+          border: 1px solid #cbd5e1;
+          background-color: #ffffff;
+          color: #0f172a;
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
+          width: 100%;
         }
         input:focus,
         select:focus {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px var(--primary-glow);
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
         .input-error {
-          border-color: var(--error-color) !important;
+          border-color: #ef4444 !important;
         }
         .error-message {
-          color: var(--error-color);
+          color: #dc2626;
           font-size: 12px;
+          font-weight: 600;
         }
         .expiration-group {
           animation: slideDown 0.25s ease-out;
@@ -265,32 +267,33 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
           border-radius: 8px;
           font-size: 14px;
           margin-bottom: 16px;
-          font-weight: 500;
+          font-weight: 600;
         }
         .alert-success {
-          background-color: var(--success-glow);
-          color: var(--success-color);
-          border: 1px solid var(--success-color);
+          background-color: #ecfdf5;
+          color: #059669;
+          border: 1px solid #a7f3d0;
         }
         .alert-error {
-          background-color: var(--error-glow);
-          color: var(--error-color);
-          border: 1px solid var(--error-color);
+          background-color: #fef2f2;
+          color: #dc2626;
+          border: 1px solid #fecaca;
         }
         .submit-btn {
           width: 100%;
-          background-color: var(--primary-color);
+          background-color: #2563eb;
           color: white;
           border: none;
           padding: 12px;
           border-radius: 8px;
           font-size: 15px;
-          font-weight: 600;
+          font-weight: 700;
           cursor: pointer;
           transition: background-color 0.2s, transform 0.1s;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
         .submit-btn:hover:not(:disabled) {
-          background-color: var(--primary-hover);
+          background-color: #1d4ed8;
         }
         .submit-btn:active:not(:disabled) {
           transform: scale(0.99);

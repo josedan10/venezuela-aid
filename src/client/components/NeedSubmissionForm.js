@@ -357,24 +357,25 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
         }
         label {
           font-size: 13px;
-          font-weight: 500;
-          color: var(--text-secondary);
+          font-weight: 600;
+          color: #334155;
         }
         textarea {
           padding: 12px;
           border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-body);
-          color: var(--text-primary);
+          border: 1px solid #cbd5e1;
+          background-color: #ffffff;
+          color: #0f172a;
           font-size: 14px;
           outline: none;
           resize: vertical;
           font-family: inherit;
           transition: border-color 0.2s, box-shadow 0.2s;
+          width: 100%;
         }
         textarea:focus {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px var(--primary-glow);
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
         .urgency-rating-bar {
           display: flex;
@@ -386,20 +387,20 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
           flex: 1;
           padding: 10px 4px;
           font-size: 12px;
-          font-weight: 500;
-          background-color: var(--bg-body);
-          border: 1px solid var(--border-color);
+          font-weight: 600;
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
           border-radius: 6px;
-          color: var(--text-secondary);
+          color: #475569;
           cursor: pointer;
           transition: all 0.2s;
           white-space: nowrap;
         }
-        .rating-btn.active.rating-1 { background-color: #4caf50; color: white; border-color: #4caf50; }
-        .rating-btn.active.rating-2 { background-color: #8bc34a; color: white; border-color: #8bc34a; }
-        .rating-btn.active.rating-3 { background-color: #ffc107; color: #212121; border-color: #ffc107; }
-        .rating-btn.active.rating-4 { background-color: #ff9800; color: white; border-color: #ff9800; }
-        .rating-btn.active.rating-5 { background-color: var(--error-color); color: white; border-color: var(--error-color); box-shadow: 0 0 8px var(--error-glow); }
+        .rating-btn.active.rating-1 { background-color: #10b981; color: white; border-color: #10b981; }
+        .rating-btn.active.rating-2 { background-color: #84cc16; color: white; border-color: #84cc16; }
+        .rating-btn.active.rating-3 { background-color: #f59e0b; color: white; border-color: #f59e0b; }
+        .rating-btn.active.rating-4 { background-color: #f97316; color: white; border-color: #f97316; }
+        .rating-btn.active.rating-5 { background-color: #ef4444; color: white; border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
         
         .gps-status-row {
           display: flex;
@@ -410,21 +411,21 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
           gap: 8px;
         }
         .gps-success-msg {
-          color: var(--success-color);
-          font-weight: 500;
+          color: #10b981;
+          font-weight: 600;
         }
         .gps-retry-btn {
           background: none;
           border: none;
-          color: var(--primary-color);
+          color: #2563eb;
           font-weight: 600;
           cursor: pointer;
           padding: 0;
           text-decoration: underline;
         }
         .items-section {
-          background-color: var(--bg-body);
-          border: 1px solid var(--border-color);
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
           padding: 16px;
           margin-bottom: 20px;
@@ -433,7 +434,8 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
           margin-top: 0;
           margin-bottom: 12px;
           font-size: 15px;
-          color: var(--text-primary);
+          color: #0f172a;
+          font-weight: 700;
         }
         .block-error {
           display: block;
@@ -449,14 +451,18 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
           flex: 1;
           padding: 10px;
           font-size: 13px;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          background-color: #ffffff;
+          color: #0f172a;
         }
         .quantity-input {
           width: 80px;
           padding: 10px;
           border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-card);
-          color: var(--text-primary);
+          border: 1px solid #cbd5e1;
+          background-color: #ffffff;
+          color: #0f172a;
           font-size: 13px;
           outline: none;
         }

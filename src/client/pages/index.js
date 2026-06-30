@@ -2203,10 +2203,14 @@ export default function Home() {
       <style jsx>{`
         .home-wrapper {
           position: relative;
-          width: 100vw;
-          height: 100vh;
+          width: 100%;
+          height: calc(100vh - 120px);
+          min-height: 720px;
+          border-radius: 16px;
           overflow: hidden;
-          background-color: #0b0f19;
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
         }
 
         .floating-ui-container {
@@ -2239,8 +2243,9 @@ export default function Home() {
           gap: 12px;
           padding: 8px 16px;
           border-radius: 30px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+          border: 1px solid #cbd5e1;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+          background: rgba(255, 255, 255, 0.95);
         }
 
         .toggle-ui-btn {
@@ -2248,7 +2253,7 @@ export default function Home() {
           border: none;
           font-weight: 700;
           font-size: 13px;
-          color: #f8fafc;
+          color: #0f172a;
           cursor: pointer;
           transition: all 0.2s;
           padding: 6px 12px;
@@ -2256,28 +2261,29 @@ export default function Home() {
         }
 
         .toggle-ui-btn:hover {
-          background-color: rgba(255, 255, 255, 0.08);
+          background-color: #eff6ff;
+          color: #2563eb;
         }
 
         .map-style-selector {
           display: flex;
           align-items: center;
           gap: 6px;
-          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          border-left: 1px solid #cbd5e1;
           padding-left: 12px;
         }
 
         .style-label {
           font-size: 11px;
-          color: #cbd5e1;
+          color: #475569;
           font-weight: bold;
           text-transform: uppercase;
         }
 
         .map-style-select {
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: #f8fafc;
+          background: #ffffff;
+          border: 1px solid #cbd5e1;
+          color: #0f172a;
           border-radius: 12px;
           padding: 4px 8px;
           font-size: 12px;
@@ -2287,8 +2293,8 @@ export default function Home() {
         }
 
         .map-style-select:hover {
-          border-color: rgba(255, 255, 255, 0.2);
-          background: rgba(0, 0, 0, 0.6);
+          border-color: #2563eb;
+          background: #eff6ff;
         }
 
         /* Floating Header design */
@@ -2300,9 +2306,11 @@ export default function Home() {
           padding: 12px 24px;
           border-radius: 16px;
           margin-bottom: 20px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
           width: 100%;
           box-sizing: border-box;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #e2e8f0;
         }
 
         .brand-box {
@@ -2318,13 +2326,13 @@ export default function Home() {
         .brand-text h2 {
           font-size: 18px;
           font-weight: 800;
-          color: #f8fafc;
+          color: #0f172a;
           letter-spacing: -0.5px;
         }
 
         .brand-text p {
           font-size: 11px;
-          color: #94a3b8;
+          color: #64748b;
         }
 
         .header-session-info {
@@ -2332,29 +2340,31 @@ export default function Home() {
           align-items: center;
           gap: 14px;
           font-size: 13px;
-          color: #e2e8f0;
+          color: #334155;
+          font-weight: 600;
         }
 
         .logout-btn {
           background-color: #ef4444;
           color: white;
           border: none;
-          padding: 6px 12px;
+          padding: 6px 14px;
           border-radius: 8px;
           cursor: pointer;
           font-weight: 600;
           font-size: 12px;
-          transition: opacity 0.2s;
+          transition: all 0.2s;
         }
 
-        .logout-btn:hover { opacity: 0.9; }
+        .logout-btn:hover { background-color: #dc2626; }
         .guest-badge {
-          background-color: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 4px 10px;
+          background-color: #eff6ff;
+          border: 1px solid #bfdbfe;
+          padding: 4px 12px;
           border-radius: 20px;
           font-size: 11px;
-          color: #cbd5e1;
+          font-weight: 600;
+          color: #1d4ed8;
         }
 
         /* Columns Floating Panels Layout */
@@ -2409,27 +2419,28 @@ export default function Home() {
 
         /* Glass Cards styles */
         .glass-card {
-          background: rgba(15, 23, 42, 0.85);
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid #e2e8f0;
           border-radius: 16px;
           padding: 24px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+          color: #0f172a;
         }
 
         .welcome-badge {
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 700;
-          color: #f97316;
+          color: #2563eb;
           margin-bottom: 12px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
 
         .panel-text {
-          font-size: 13px;
-          color: #cbd5e1;
+          font-size: 14px;
+          color: #334155;
           line-height: 1.5;
           margin-bottom: 14px;
         }
@@ -2440,14 +2451,15 @@ export default function Home() {
         }
 
         .text-orange {
-          color: #fdba74;
+          color: #d97706;
         }
 
         .legend-box {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          background: rgba(0, 0, 0, 0.2);
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 16px;
@@ -2458,7 +2470,8 @@ export default function Home() {
           align-items: center;
           gap: 10px;
           font-size: 12px;
-          color: #cbd5e1;
+          color: #334155;
+          font-weight: 500;
         }
 
         .dot {
@@ -2467,17 +2480,17 @@ export default function Home() {
           border-radius: 50%;
         }
         .dot.red { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
-        .dot.blue { background-color: #3b82f6; }
-        .dot.orange { background-color: #f97316; }
+        .dot.blue { background-color: #2563eb; }
+        .dot.orange { background-color: #f59e0b; }
         .dot.cyan { background-color: #06b6d4; box-shadow: 0 0 8px #06b6d4; }
 
         .register-center-trigger-btn {
           width: 100%;
           padding: 12px;
           border-radius: 10px;
-          border: 1px solid rgba(249, 115, 22, 0.4);
-          background-color: rgba(249, 115, 22, 0.1);
-          color: #fdba74;
+          border: 1px solid #bfdbfe;
+          background-color: #eff6ff;
+          color: #1d4ed8;
           font-weight: 700;
           font-size: 13px;
           cursor: pointer;
@@ -2485,8 +2498,8 @@ export default function Home() {
           margin-top: 14px;
         }
         .register-center-trigger-btn:hover {
-          background-color: rgba(249, 115, 22, 0.2);
-          border-color: rgba(249, 115, 22, 0.6);
+          background-color: #dbeafe;
+          border-color: #3b82f6;
         }
         .register-center-trigger-btn.active {
           background-color: #ef4444;
@@ -2504,9 +2517,11 @@ export default function Home() {
           display: flex;
           flex-wrap: wrap;
           gap: 4px;
-          padding: 4px;
+          padding: 6px;
           border-radius: 12px;
           margin-bottom: 14px;
+          background-color: #f1f5f9;
+          border: 1px solid #e2e8f0;
           pointer-events: auto;
         }
 
@@ -2515,29 +2530,30 @@ export default function Home() {
           min-width: 75px;
           background: none;
           border: none;
-          padding: 10px 4px;
+          padding: 10px 6px;
           font-size: 12px;
           font-weight: 600;
-          color: #94a3b8;
+          color: #64748b;
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s;
         }
 
         .tab-btn:hover {
-          color: #f8fafc;
-          background-color: rgba(255, 255, 255, 0.03);
+          color: #0f172a;
+          background-color: rgba(0, 0, 0, 0.04);
         }
 
         .tab-btn.active {
-          color: #f8fafc;
-          background-color: rgba(255, 255, 255, 0.08);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          color: #2563eb;
+          background-color: #ffffff;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          font-weight: 700;
         }
 
         .tab-btn.register-tab {
-          background-color: rgba(59, 130, 246, 0.1);
-          color: #60a5fa;
+          background-color: #eff6ff;
+          color: #1d4ed8;
         }
         .tab-btn.register-tab.active {
           background-color: #3b82f6;
@@ -2550,10 +2566,11 @@ export default function Home() {
         .auth-required-card h3 {
           font-size: 18px;
           margin-bottom: 8px;
-          color: #f8fafc;
+          color: #0f172a;
+          font-weight: 700;
         }
         .auth-required-card p {
-          color: #94a3b8;
+          color: #475569;
           font-size: 13px;
           margin-bottom: 20px;
         }
@@ -2567,8 +2584,8 @@ export default function Home() {
           gap: 12px;
         }
         .login-mini-form label {
-          font-size: 11px;
-          color: #94a3b8;
+          font-size: 12px;
+          color: #334155;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -2576,32 +2593,33 @@ export default function Home() {
         .login-mini-form input {
           width: 100%;
           padding: 12px 14px;
-          background-color: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
           border-radius: 10px;
-          color: white;
+          color: #0f172a;
           outline: none;
-          font-size: 13px;
+          font-size: 14px;
           transition: all 0.2s;
         }
         .login-mini-form input:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
         .login-submit-btn {
-          background-color: #3b82f6;
+          background-color: #2563eb;
           color: white;
           border: none;
           padding: 12px;
           border-radius: 10px;
           font-weight: 700;
-          font-size: 13px;
+          font-size: 14px;
           cursor: pointer;
           transition: all 0.2s;
           text-align: center;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
         .login-submit-btn:hover {
-          background-color: #2563eb;
+          background-color: #1d4ed8;
           transform: translateY(-1px);
         }
         .login-submit-btn:active {
@@ -2613,17 +2631,17 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px 14px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          font-size: 11px;
+          border-bottom: 1px solid #e2e8f0;
+          font-size: 12px;
           font-weight: bold;
-          color: #cbd5e1;
+          color: #334155;
           user-select: none;
         }
 
         .minimize-panel-btn {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: #64748b;
           font-size: 12px;
           cursor: pointer;
           transition: transform 0.2s;
@@ -2631,7 +2649,7 @@ export default function Home() {
         }
 
         .minimize-panel-btn:hover {
-          color: #f8fafc;
+          color: #0f172a;
           transform: scale(1.1);
         }
 
@@ -2651,15 +2669,15 @@ export default function Home() {
         }
 
         .team-description {
-          font-size: 12px;
-          color: #cbd5e1;
+          font-size: 13px;
+          color: #475569;
           margin-bottom: 14px;
           line-height: 1.4;
         }
 
         .team-sharing-control {
-          background: rgba(6, 182, 212, 0.1);
-          border: 1px solid rgba(6, 182, 212, 0.25);
+          background: #eff6ff;
+          border: 1px solid #bfdbfe;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 14px;
@@ -2669,17 +2687,19 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 8px;
-          font-size: 12px;
-          color: #a5f3fc;
+          font-size: 13px;
+          color: #1d4ed8;
           cursor: pointer;
+          font-weight: 600;
         }
 
         .team-members-section h4 {
           font-size: 13px;
-          color: #f8fafc;
+          color: #0f172a;
           margin-bottom: 10px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          border-bottom: 1px solid #e2e8f0;
           padding-bottom: 6px;
+          font-weight: 700;
         }
 
         .team-members-list {
@@ -2695,8 +2715,8 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px;
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
         }
 
@@ -2706,30 +2726,30 @@ export default function Home() {
         }
 
         .member-name {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 600;
-          color: #f8fafc;
+          color: #0f172a;
         }
 
         .member-roles {
-          font-size: 9px;
-          color: #94a3b8;
+          font-size: 10px;
+          color: #64748b;
           text-transform: uppercase;
         }
 
         .location-active-badge {
-          font-size: 10px;
-          color: #34d399;
+          font-size: 11px;
+          color: #10b981;
           font-weight: bold;
         }
 
         .location-pending-badge {
-          font-size: 10px;
-          color: #fbbf24;
+          font-size: 11px;
+          color: #f59e0b;
         }
 
         .location-inactive-badge {
-          font-size: 10px;
+          font-size: 11px;
           color: #f87171;
         }
 
@@ -2764,8 +2784,8 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px;
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
         }
 
@@ -2775,26 +2795,26 @@ export default function Home() {
         }
 
         .available-team-name {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 600;
-          color: #f8fafc;
+          color: #0f172a;
         }
 
         .available-team-desc {
-          font-size: 10px;
-          color: #cbd5e1;
+          font-size: 11px;
+          color: #475569;
         }
 
         .team-creator {
-          font-size: 9px;
-          color: #94a3b8;
+          font-size: 10px;
+          color: #64748b;
         }
 
         .join-team-btn {
           padding: 6px 12px;
-          background-color: rgba(59, 130, 246, 0.15);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          color: #60a5fa;
+          background-color: #eff6ff;
+          border: 1px solid #bfdbfe;
+          color: #1d4ed8;
           border-radius: 6px;
           font-size: 11px;
           font-weight: 700;
@@ -2803,17 +2823,17 @@ export default function Home() {
         }
 
         .join-team-btn:hover {
-          background-color: rgba(59, 130, 246, 0.25);
+          background-color: #dbeafe;
         }
 
         /* Selected point details card overlay */
         .selected-point-details-card {
           margin: 14px;
           padding: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          background: rgba(15, 23, 42, 0.95);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+          background: #ffffff;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
 
         .selected-point-details-card .card-header {
@@ -2824,11 +2844,11 @@ export default function Home() {
         }
 
         .point-type-badge {
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 800;
           text-transform: uppercase;
-          background: rgba(59, 130, 246, 0.2);
-          color: #60a5fa;
+          background: #eff6ff;
+          color: #1d4ed8;
           padding: 4px 8px;
           border-radius: 6px;
           letter-spacing: 0.5px;
@@ -2837,7 +2857,7 @@ export default function Home() {
         .close-point-btn {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: #64748b;
           font-size: 14px;
           font-weight: bold;
           cursor: pointer;
@@ -2845,26 +2865,26 @@ export default function Home() {
         }
 
         .close-point-btn:hover {
-          color: #f8fafc;
+          color: #0f172a;
         }
 
         .selected-point-details-card h3 {
-          font-size: 15px;
-          color: #f8fafc;
+          font-size: 16px;
+          color: #0f172a;
           margin: 0 0 10px 0;
           font-weight: 700;
         }
 
         .point-desc {
-          font-size: 12px;
-          color: #cbd5e1;
+          font-size: 13px;
+          color: #334155;
           margin: 0 0 8px 0;
           line-height: 1.4;
         }
 
         .point-coords {
-          font-size: 10px;
-          color: #94a3b8;
+          font-size: 11px;
+          color: #64748b;
           margin: 6px 0 12px 0;
         }
 
@@ -2877,25 +2897,27 @@ export default function Home() {
         .point-urgency-badge {
           font-size: 11px;
           font-weight: 700;
-          padding: 2px 6px;
+          padding: 2px 8px;
           border-radius: 4px;
         }
 
         .point-urgency-badge.high {
-          background: rgba(239, 68, 68, 0.2);
-          color: #f87171;
+          background: #fef2f2;
+          color: #dc2626;
+          border: 1px solid #fecaca;
         }
 
         .point-urgency-badge.normal {
-          background: rgba(59, 130, 246, 0.2);
-          color: #60a5fa;
+          background: #eff6ff;
+          color: #2563eb;
+          border: 1px solid #bfdbfe;
         }
 
         .point-status-badge {
           font-size: 11px;
-          background: rgba(255, 255, 255, 0.08);
-          color: #cbd5e1;
-          padding: 2px 6px;
+          background: #f1f5f9;
+          color: #475569;
+          padding: 2px 8px;
           border-radius: 4px;
         }
 
@@ -3001,8 +3023,8 @@ export default function Home() {
 
         /* Complete profile & Driver Styles */
         .complete-profile-form-box {
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
           padding: 16px;
           margin-top: 10px;
@@ -3019,20 +3041,21 @@ export default function Home() {
         }
         .input-group label {
           font-size: 12px;
-          color: #cbd5e1;
-          font-weight: 500;
+          color: #334155;
+          font-weight: 600;
         }
         .input-group input[type="text"] {
           padding: 10px 12px;
-          background-color: #0b0f19;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
           border-radius: 8px;
-          color: white;
-          font-size: 13px;
+          color: #0f172a;
+          font-size: 14px;
           outline: none;
         }
         .input-group input[type="text"]:focus {
-          border-color: #3b82f6;
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
 
         .driver-dashboard-grid {
@@ -3048,7 +3071,7 @@ export default function Home() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid #e2e8f0;
           padding-bottom: 10px;
           margin-bottom: 14px;
         }
@@ -3058,19 +3081,20 @@ export default function Home() {
           font-size: 10px;
           font-weight: 700;
         }
-        .status-badge.VERIFIED { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
-        .status-badge.PENDING_APPROVAL { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+        .status-badge.VERIFIED { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .status-badge.PENDING_APPROVAL { background-color: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
         
         .availability-toggle-section {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: rgba(0, 0, 0, 0.2);
+          background: #f1f5f9;
           padding: 12px;
           border-radius: 10px;
+          border: 1px solid #e2e8f0;
         }
-        .status-online { color: #10b981; }
-        .status-offline { color: #94a3b8; }
+        .status-online { color: #10b981; font-weight: 700; }
+        .status-offline { color: #64748b; font-weight: 700; }
         .toggle-btn {
           border: none;
           padding: 8px 14px;
@@ -3079,12 +3103,12 @@ export default function Home() {
           font-size: 12px;
           cursor: pointer;
         }
-        .toggle-btn.online { background-color: #374151; color: white; }
+        .toggle-btn.online { background-color: #e2e8f0; color: #0f172a; }
         .toggle-btn.offline { background-color: #10b981; color: white; }
 
         .network-simulator-card {
           margin-top: 14px;
-          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          border-top: 1px dashed #cbd5e1;
           padding-top: 14px;
         }
         .network-sim-header {
@@ -3093,7 +3117,7 @@ export default function Home() {
           font-size: 12px;
           font-weight: 600;
           margin-bottom: 8px;
-          color: #94a3b8;
+          color: #475569;
         }
         .network-status.online { color: #10b981; }
         .network-status.offline { color: #ef4444; }
@@ -3106,13 +3130,13 @@ export default function Home() {
           font-size: 12px;
           cursor: pointer;
         }
-        .network-toggle-btn.disconnect { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; }
-        .network-toggle-btn.reconnect { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
+        .network-toggle-btn.disconnect { background-color: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .network-toggle-btn.reconnect { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
         .offline-buffer-badge {
           margin-top: 8px;
-          background: rgba(245, 158, 11, 0.15);
-          color: #f59e0b;
-          border: 1px solid #f59e0b;
+          background: #fffbeb;
+          color: #d97706;
+          border: 1px solid #fde68a;
           padding: 8px 12px;
           border-radius: 8px;
           font-size: 11px;
@@ -3121,7 +3145,7 @@ export default function Home() {
         /* Driver setting adjustments & alert cards */
         .driver-settings-card, .nearby-needs-card {
           margin-top: 14px;
-          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          border-top: 1px dashed #cbd5e1;
           padding-top: 14px;
         }
         .setting-row {
@@ -3131,14 +3155,14 @@ export default function Home() {
         }
         .setting-row label {
           font-size: 11px;
-          color: #94a3b8;
+          color: #475569;
           text-transform: uppercase;
           font-weight: bold;
         }
         .radius-range-slider {
           width: 100%;
           cursor: pointer;
-          accent-color: #3b82f6;
+          accent-color: #2563eb;
           margin-top: 4px;
         }
         .nearby-needs-list {
@@ -3150,8 +3174,8 @@ export default function Home() {
           margin-top: 10px;
         }
         .nearby-need-row {
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
           padding: 10px;
           display: flex;
@@ -3164,23 +3188,23 @@ export default function Home() {
           align-items: center;
         }
         .need-location {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 700;
-          color: #f8fafc;
+          color: #0f172a;
         }
         .need-distance {
-          font-size: 10px;
-          color: #38bdf8;
+          font-size: 11px;
+          color: #2563eb;
           font-weight: bold;
         }
         .need-desc-text {
-          font-size: 11px;
-          color: #cbd5e1;
+          font-size: 12px;
+          color: #475569;
           margin: 0;
         }
         .no-needs-msg {
-          font-size: 11px;
-          color: #94a3b8;
+          font-size: 12px;
+          color: #64748b;
           text-align: center;
           padding: 12px;
           margin: 0;
@@ -3190,9 +3214,9 @@ export default function Home() {
           width: 100%;
           text-align: center;
           padding: 11px;
-          background-color: rgba(16, 185, 129, 0.15);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          color: #34d399;
+          background-color: #ecfdf5;
+          border: 1px solid #a7f3d0;
+          color: #059669;
           border-radius: 10px;
           font-size: 12px;
           font-weight: 700;
@@ -3202,20 +3226,21 @@ export default function Home() {
           transition: all 0.2s;
         }
         .google-maps-btn:hover {
-          background-color: rgba(16, 185, 129, 0.25);
+          background-color: #d1fae5;
           transform: translateY(-1px);
         }
 
         .proposal-card {
-          border: 1px solid #3b82f6;
+          border: 1px solid #2563eb;
           animation: pulseProposal 2s infinite;
           padding: 20px;
           border-radius: 16px;
+          background: #ffffff;
         }
         @keyframes pulseProposal {
-          0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
-          50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.4); border-color: #60a5fa; }
-          100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+          0% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.15); }
+          50% { box-shadow: 0 0 25px rgba(37, 99, 235, 0.3); border-color: #1d4ed8; }
+          100% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.15); }
         }
         .proposal-pulse-header {
           display: flex;
@@ -3223,7 +3248,7 @@ export default function Home() {
           align-items: center;
           margin-bottom: 8px;
         }
-        .proposal-pulse-header h4 { color: #60a5fa; font-size: 14px; font-weight: 800; }
+        .proposal-pulse-header h4 { color: #1d4ed8; font-size: 14px; font-weight: 800; }
         .countdown-timer { background: #ef4444; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
         .proposal-actions { display: flex; gap: 8px; margin-top: 12px; }
         .proposal-actions button { flex: 1; padding: 8px; border-radius: 6px; font-weight: 700; font-size: 12px; border: none; cursor: pointer; }

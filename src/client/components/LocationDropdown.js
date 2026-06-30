@@ -145,37 +145,39 @@ export default function LocationDropdown({ onChange, error = null }) {
           gap: 6px;
         }
         label {
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text-secondary);
+          font-size: 13px;
+          font-weight: 600;
+          color: #334155;
         }
         select {
           padding: 12px 14px;
           border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-card);
-          color: var(--text-primary);
+          border: 1px solid #cbd5e1;
+          background-color: #ffffff;
+          color: #0f172a;
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
+          width: 100%;
         }
         select:focus {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px var(--primary-glow);
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
         select:disabled {
-          background-color: var(--bg-disabled);
-          color: var(--text-disabled);
+          background-color: #f1f5f9;
+          color: #94a3b8;
           cursor: not-allowed;
-          border-color: var(--border-disabled);
+          border-color: #e2e8f0;
         }
         .input-error {
-          border-color: var(--error-color) !important;
+          border-color: #ef4444 !important;
         }
         .error-message {
           grid-column: 1 / -1;
-          color: var(--error-color);
+          color: #dc2626;
           font-size: 12px;
+          font-weight: 600;
           margin-top: -4px;
         }
       `}</style>

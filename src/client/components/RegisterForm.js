@@ -250,8 +250,8 @@ export default function RegisterForm({ onRegisterSuccess }) {
         .field-label {
           display: block;
           font-size: 13px;
-          font-weight: 500;
-          color: #cbd5e1;
+          font-weight: 600;
+          color: #334155;
           margin-bottom: 8px;
         }
         .role-selector-grid {
@@ -264,22 +264,22 @@ export default function RegisterForm({ onRegisterSuccess }) {
           padding: 10px 4px;
           font-size: 12px;
           font-weight: 700;
-          color: #94a3b8;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          color: #64748b;
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s;
         }
         .role-selector-grid button:hover {
-          color: #f8fafc;
-          background: rgba(255, 255, 255, 0.07);
+          color: #0f172a;
+          background: #f1f5f9;
         }
         .role-selector-grid button.active {
-          background-color: #3b82f6;
-          border-color: #3b82f6;
+          background-color: #2563eb;
+          border-color: #2563eb;
           color: #ffffff;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
         }
         .input-group {
           display: flex;
@@ -290,34 +290,36 @@ export default function RegisterForm({ onRegisterSuccess }) {
         .input-group label {
           font-size: 12px;
           font-weight: 600;
-          color: #cbd5e1;
+          color: #334155;
         }
         input {
           padding: 11px 13px;
           border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background-color: rgba(0, 0, 0, 0.3);
-          color: #f8fafc;
-          font-size: 13px;
+          border: 1px solid #cbd5e1;
+          background-color: #ffffff;
+          color: #0f172a;
+          font-size: 14px;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
+          width: 100%;
         }
         input:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
         .input-error {
           border-color: #ef4444 !important;
         }
         .error-message {
-          color: #f87171;
+          color: #dc2626;
           font-size: 11px;
+          font-weight: 600;
         }
         .driver-info-badge {
-          background: rgba(59, 130, 246, 0.1);
-          border: 1px solid rgba(59, 130, 246, 0.2);
-          color: #93c5fd;
-          font-size: 11px;
+          background: #eff6ff;
+          border: 1px solid #bfdbfe;
+          color: #1e40af;
+          font-size: 12px;
           line-height: 1.4;
           padding: 10px 12px;
           border-radius: 8px;
@@ -332,18 +334,18 @@ export default function RegisterForm({ onRegisterSuccess }) {
           text-align: center;
         }
         .alert-success {
-          background: rgba(16, 185, 129, 0.15);
-          color: #34d399;
-          border: 1px solid rgba(16, 185, 129, 0.3);
+          background: #ecfdf5;
+          color: #059669;
+          border: 1px solid #a7f3d0;
         }
         .alert-error {
-          background: rgba(239, 68, 68, 0.15);
-          color: #f87171;
-          border: 1px solid rgba(239, 68, 68, 0.3);
+          background: #fef2f2;
+          color: #dc2626;
+          border: 1px solid #fecaca;
         }
         .submit-btn {
           width: 100%;
-          background-color: #3b82f6;
+          background-color: #2563eb;
           color: #ffffff;
           border: none;
           padding: 12px;
@@ -352,9 +354,10 @@ export default function RegisterForm({ onRegisterSuccess }) {
           font-weight: 700;
           cursor: pointer;
           transition: background-color 0.2s, transform 0.1s;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
         .submit-btn:hover:not(:disabled) {
-          background-color: #2563eb;
+          background-color: #1d4ed8;
         }
         .submit-btn:active:not(:disabled) {
           transform: scale(0.98);
