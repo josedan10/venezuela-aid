@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsISO8601, IsNumber } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsISO8601, IsLatitude, IsLongitude, IsUUID } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { ResourceCategory } from '@prisma/client';
 
 export class CreateResourceDto {
@@ -24,20 +24,17 @@ export class CreateResourceDto {
   expirationDate?: string;
 
   @IsOptional()
-  @IsString()
-  donorId?: string;
-
-  @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsLatitude({ message: 'La latitud no es válida.' })
   latitude?: number;
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsLongitude({ message: 'La longitud no es válida.' })
   longitude?: number;
 
   @IsOptional()
-  @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  @IsUUID('4', { message: 'El ID del centro de acopio no es válido.' })
   collectionCenterId?: string;
 }

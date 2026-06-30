@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MatchingService } from '../matching/matching.service';
 import { CreateNeedDto } from './dto/create-need.dto';
@@ -31,11 +31,12 @@ export class NeedsService {
       const center = await this.prisma.collectionCenter.findUnique({
         where: { id: dto.collectionCenterId },
       });
-      if (center) {
-        originLatitude = center.latitude;
-        originLongitude = center.longitude;
-        originLabel = center.name;
+      if (!center) {
+        throw new BadRequestException('El centro de acopio indicado no existe.');
       }
+      originLatitude = center.latitude;
+      originLongitude = center.longitude;
+      originLabel = center.name;
     }
 
     const need = await this.prisma.need.create({
@@ -69,7 +70,15 @@ export class NeedsService {
       },
     });
 
-    const matchResult = await this.matchingService.matchResourcesForNeed(need.id);
+    const matchResult = await this.matchingService.matchResourcesForNeed(need.id).catch((err) => {
+      console.error(`[NeedsService] Matching failed for need ${need.id}:`, err);
+      return {
+        needId: need.id,
+        matched: 0,
+        total: need.items.length,
+        error: 'matching_failed',
+      };
+    });
 
     const enrichedNeed = await this.getNeedById(need.id);
 

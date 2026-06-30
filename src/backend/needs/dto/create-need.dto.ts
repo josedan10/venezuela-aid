@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsNumber, ValidateNested, ArrayNotEmpty } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsNumber, ValidateNested, ArrayNotEmpty, IsUUID } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class NeedItemDto {
   @IsString({ message: 'El ID del ítem debe ser una cadena de texto.' })
@@ -38,7 +38,8 @@ export class CreateNeedDto {
   longitude?: number;
 
   @IsOptional()
-  @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  @IsUUID('4', { message: 'El ID del centro de acopio no es válido.' })
   collectionCenterId?: string;
 
   @ValidateNested({ each: true })

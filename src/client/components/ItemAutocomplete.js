@@ -33,6 +33,7 @@ export default function ItemAutocomplete({
   useEffect(() => {
     if (!open) return;
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
@@ -40,18 +41,25 @@ export default function ItemAutocomplete({
         if (query.trim()) params.set('q', query.trim());
         if (category) params.set('category', category);
         params.set('limit', '20');
-        const res = await fetch(`${API}/items?${params.toString()}`);
+        const res = await fetch(`${API}/items?${params.toString()}`, { signal: controller.signal });
         if (res.ok) {
           setSuggestions(await res.json());
         }
       } catch (e) {
-        console.error('Error fetching items:', e);
+        if (e.name !== 'AbortError') {
+          console.error('Error fetching items:', e);
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }, 200);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, category, open]);
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { DispatchGateway } from './dispatch.gateway';
 import { DispatchStatus, NeedStatus, DriverStatus, DispatchTask } from '@prisma/client';
 import { Role } from '../users/role.enum';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
+import { getDistanceKm } from '../common/geo.util';
 
 @Injectable()
 export class DispatchService implements OnModuleInit {
@@ -54,8 +55,11 @@ export class DispatchService implements OnModuleInit {
     }
 
     // Origin point (people waiting / pickup) takes priority over destination
-    const originLat = need.originLatitude ?? need.latitude ?? 10.5;
-    const originLng = need.originLongitude ?? need.longitude ?? -66.9;
+    const originLat = need.originLatitude ?? need.latitude;
+    const originLng = need.originLongitude ?? need.longitude;
+    if (originLat == null || originLng == null) {
+      throw new BadRequestException('La necesidad no tiene coordenadas de origen válidas para despacho.');
+    }
     const destLat = need.latitude ?? originLat;
     const destLng = need.longitude ?? originLng;
     const pickupLabel = need.originLabel ?? need.collectionCenter?.name ?? `${need.state} - ${need.sector}`;
@@ -83,7 +87,7 @@ export class DispatchService implements OnModuleInit {
         !driverUser ||
         !driverUser.roles.split(',').includes(Role.DRIVER) ||
         !driverUser.driverDetails ||
-        driverUser.driverDetails.status === DriverStatus.REJECTED
+        driverUser.driverDetails.status !== DriverStatus.VERIFIED
       ) {
         continue;
       }
@@ -94,14 +98,16 @@ export class DispatchService implements OnModuleInit {
       }
 
       const driverRadius = driverUser.alertRadiusKm ?? 15;
-      const driverPos = await this.redisService.getClient().geopos('drivers:locations', driverId);
-      if (driverPos && driverPos.length >= 2) {
-        const driverLng = parseFloat(String(driverPos[0]));
-        const driverLat = parseFloat(String(driverPos[1]));
-        const distToOrigin = this.haversineKm(driverLat, driverLng, originLat, originLng);
-        if (distToOrigin > driverRadius) {
-          continue;
-        }
+      const positions = await this.redisService.getClient().geopos('drivers:locations', driverId);
+      const driverPos = positions?.[0];
+      if (!driverPos || driverPos[0] == null || driverPos[1] == null) {
+        continue;
+      }
+      const driverLng = parseFloat(String(driverPos[0]));
+      const driverLat = parseFloat(String(driverPos[1]));
+      const distToOrigin = getDistanceKm(driverLat, driverLng, originLat, originLng);
+      if (distToOrigin > driverRadius) {
+        continue;
       }
 
       selectedDriverId = driverId;
@@ -170,20 +176,6 @@ export class DispatchService implements OnModuleInit {
       message: 'Propuesta de despacho enviada al conductor más cercano al punto de origen.',
       task,
     };
-  }
-
-  private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
   }
 
   async acceptDispatchTask(driverId: string, taskId: string) {
@@ -257,27 +249,17 @@ export class DispatchService implements OnModuleInit {
       // Remove Redis proposal key
       await this.redisService.getClient().del(proposalKey);
 
-      // 4. Reserve stock of resources
+      // 4. Reserve stock of matched resources only
       const needItems = await tx.needItem.findMany({
-        where: { needId: task.needId },
+        where: { needId: task.needId, matchedResourceId: { not: null } },
       });
 
-      for (const item of needItems) {
-        let stockResourceId = item.matchedResourceId;
+      if (needItems.length === 0) {
+        throw new BadRequestException('No hay ítems emparejados para este despacho.');
+      }
 
-        if (!stockResourceId) {
-          const fallback = await tx.resource.findFirst({
-            where: {
-              itemId: item.itemId,
-              stockQuantity: { gte: item.quantity },
-            },
-            orderBy: { stockQuantity: 'desc' },
-          });
-          if (!fallback) {
-            throw new BadRequestException(`Stock insuficiente para el ítem solicitado (ID: ${item.itemId}).`);
-          }
-          stockResourceId = fallback.id;
-        }
+      for (const item of needItems) {
+        const stockResourceId = item.matchedResourceId!;
 
         const resources = await tx.$queryRaw<any[]>`
           SELECT * FROM Resource WHERE id = ${stockResourceId} FOR UPDATE

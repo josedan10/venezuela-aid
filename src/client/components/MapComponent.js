@@ -241,8 +241,8 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
       }
 
       // Render user current location if present (skip duplicate marker for drivers)
-      const showUserMarker = userGeolocation && userGeolocation.lat && userGeolocation.lng
-        && !(driverLocation && driverLocation.lat && driverLocation.lng);
+      const showUserMarker = userGeolocation?.lat != null && userGeolocation?.lng != null
+        && !(driverLocation?.lat != null && driverLocation?.lng != null);
       if (showUserMarker) {
         const uLat = parseFloat(userGeolocation.lat);
         const uLng = parseFloat(userGeolocation.lng);

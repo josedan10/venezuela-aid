@@ -39,11 +39,20 @@ export class MatchingService {
     originLat: number,
     originLng: number,
     radiusKm = DEFAULT_MATCH_RADIUS_KM,
+    reservedByResource: Map<string, number> = new Map(),
   ) {
+    const now = new Date();
     const candidates = await this.prisma.resource.findMany({
       where: {
-        stockQuantity: { gte: quantity },
         OR: [{ itemId }, { category }],
+        AND: [
+          {
+            OR: [
+              { expirationDate: null },
+              { expirationDate: { gt: now } },
+            ],
+          },
+        ],
       },
       include: {
         item: { select: { name: true } },
@@ -55,6 +64,10 @@ export class MatchingService {
     let best: { resource: ResourceWithRelations; distanceKm: number; label: string; score: number } | null = null;
 
     for (const resource of candidates) {
+      const alreadyReserved = reservedByResource.get(resource.id) ?? 0;
+      const availableQty = resource.stockQuantity - alreadyReserved;
+      if (availableQty < quantity) continue;
+
       const loc = this.resolveResourceLocation(resource);
       if (!loc) continue;
 
@@ -103,7 +116,9 @@ export class MatchingService {
       data: { originLatitude: originLat, originLongitude: originLng, originLabel },
     });
 
+    const reservedByResource = new Map<string, number>();
     let matched = 0;
+
     for (const item of need.items) {
       const offer = await this.findBestOffer(
         item.itemId,
@@ -111,6 +126,8 @@ export class MatchingService {
         item.quantity,
         originLat,
         originLng,
+        DEFAULT_MATCH_RADIUS_KM,
+        reservedByResource,
       );
 
       if (offer) {
@@ -125,6 +142,10 @@ export class MatchingService {
             pickupLabel: offer.label,
           },
         });
+        reservedByResource.set(
+          offer.resource.id,
+          (reservedByResource.get(offer.resource.id) ?? 0) + item.quantity,
+        );
         matched++;
       }
     }

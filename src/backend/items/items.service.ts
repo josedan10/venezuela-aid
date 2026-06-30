@@ -1,4 +1,5 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { ResourceCategory } from '@prisma/client';
@@ -9,6 +10,11 @@ export class ItemsService {
 
   async search(query?: string, category?: ResourceCategory, limit = 25) {
     const trimmed = query?.trim();
+    const parsedLimit = Number(limit);
+    const take = Math.min(
+      Math.max(Number.isFinite(parsedLimit) ? Math.floor(parsedLimit) : 25, 1),
+      50,
+    );
 
     return this.prisma.item.findMany({
       where: {
@@ -22,7 +28,7 @@ export class ItemsService {
           : {}),
       },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
-      take: Math.min(limit, 50),
+      take,
     });
   }
 
@@ -32,6 +38,10 @@ export class ItemsService {
 
   async create(dto: CreateItemDto) {
     const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('El nombre del ítem no puede estar vacío.');
+    }
+
     const existing = await this.prisma.item.findUnique({
       where: {
         name_category: { name, category: dto.category },
@@ -45,8 +55,11 @@ export class ItemsService {
       return await this.prisma.item.create({
         data: { name, category: dto.category },
       });
-    } catch {
-      throw new ConflictException('Ya existe un ítem con ese nombre en la categoría seleccionada.');
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Ya existe un ítem con ese nombre en la categoría seleccionada.');
+      }
+      throw error;
     }
   }
 

@@ -3,6 +3,7 @@ import { UsersService } from './users.service';
 import { RegisterDto } from './dto/register.dto';
 import { CompleteDriverProfileDto } from './dto/complete-driver-profile.dto';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
+import { AdminRolesGuard } from './admin-roles.guard';
 
 @Controller('users')
 export class UsersController {
@@ -27,11 +28,13 @@ export class UsersController {
     return this.usersService.completeDriverProfile(req.user.id, body);
   }
 
+  @UseGuards(FirebaseAuthGuard, AdminRolesGuard)
   @Get('drivers/pending')
   async listPendingDrivers() {
     return this.usersService.listPendingDrivers();
   }
 
+  @UseGuards(FirebaseAuthGuard, AdminRolesGuard)
   @Get('drivers/fleet')
   async listFleet() {
     return this.usersService.listFleet();
@@ -43,6 +46,7 @@ export class UsersController {
     return this.usersService.saveSelfie(req.user.id, body.selfieUrl);
   }
 
+  @UseGuards(FirebaseAuthGuard, AdminRolesGuard)
   @Post('approve-driver/:id')
   async approveDriver(@Param('id') driverId: string) {
     return this.usersService.approveDriver(driverId);

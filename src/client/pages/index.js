@@ -116,7 +116,7 @@ export default function Home() {
 
   // Driver settings and nearby Needs
   const [driverRadius, setDriverRadius] = useState(15);
-  const [driverGpsSharing, setDriverGpsSharing] = useState(true);
+  const [driverGpsSharing, setDriverGpsSharing] = useState(false);
   const [nearbyNeeds, setNearbyNeeds] = useState([]);
   const [needPrefill, setNeedPrefill] = useState(null);
   const radiusSaveTimerRef = useRef(null);
@@ -255,7 +255,9 @@ export default function Home() {
 
   const fetchPendingDrivers = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/drivers/pending`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/drivers/pending`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
       if (res.ok) {
         setPendingDrivers(await res.json());
       }
@@ -266,7 +268,9 @@ export default function Home() {
 
   const fetchFleetDrivers = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/drivers/fleet`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/drivers/fleet`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
       if (res.ok) {
         setFleetDrivers(await res.json());
       }
@@ -763,16 +767,16 @@ export default function Home() {
     );
   }, [applyDevicePosition, currentUser?.id, driverGpsSharing, offlineSimulation, stopGPSTracking]);
 
-  // Keep driver position synced for drivers with GPS sharing enabled
+  // Keep driver position synced when GPS sharing is on and driver is active
   useEffect(() => {
     const isDriver = currentUser?.roles?.split(',').includes('DRIVER');
-    if (isDriver && driverGpsSharing) {
+    if (isDriver && driverGpsSharing && (driverAvailable || activeTask)) {
       startGPSTracking();
     } else {
       stopGPSTracking();
     }
     return () => stopGPSTracking();
-  }, [currentUser?.id, currentUser?.roles, driverGpsSharing, startGPSTracking, stopGPSTracking]);
+  }, [currentUser?.id, currentUser?.roles, driverGpsSharing, driverAvailable, activeTask, startGPSTracking, stopGPSTracking]);
 
   // Backfill driver coords once profile loads after initial geolocation
   useEffect(() => {
@@ -986,17 +990,40 @@ export default function Home() {
       console.warn('[Network Simulator] Modo Fuera de Línea Activado. El socket se desconectó.');
     } else {
       console.log('[Network Simulator] Conexión de Red Restablecida. Conectando socket...');
-      if (currentUser) {
-        initSocket(
-          currentUser.id,
+      if (currentUser && authToken) {
+        const isDriver = currentUser.roles.split(',').includes('DRIVER');
+        const socketInstance = initSocket(
+          isDriver ? currentUser.id : null,
           {
             onProposal: (payload) => {
               setActiveProposal(payload);
               setProposalCountdown(payload.timeoutSeconds || 60);
             },
+            onConnect: async () => {
+              if (myTeam?.inTeam && myTeam?.team?.id) {
+                socketInstance.emit('join_team', { teamId: myTeam.team.id });
+              }
+              const coords = await getBufferedCoordinates();
+              setOfflineCount(coords.length);
+            },
           },
-          currentUser.id
+          currentUser.id,
         );
+        if (myTeam?.inTeam && myTeam?.team?.id) {
+          socketInstance.emit('join_team', { teamId: myTeam.team.id });
+        }
+        socketInstance.on('team_location_update', (data) => {
+          setMyTeam((prev) => {
+            if (!prev || !prev.inTeam) return prev;
+            const updatedMembers = prev.team.members.map((m) => {
+              if (m.id === data.userId) {
+                return { ...m, latitude: data.latitude, longitude: data.longitude };
+              }
+              return m;
+            });
+            return { ...prev, team: { ...prev.team, members: updatedMembers } };
+          });
+        });
         setTimeout(async () => {
           await syncBufferedCoordinates();
           const coords = await getBufferedCoordinates();
@@ -1730,7 +1757,6 @@ export default function Home() {
                         <div className="welcome-badge">Aportar Recursos</div>
                         <ResourceCatalogForm
                           token={authToken}
-                          currentUserId={currentUser?.id}
                           collectionCenters={collectionCentersList}
                           onResourceCataloged={refreshResources}
                         />
@@ -2044,7 +2070,7 @@ export default function Home() {
                               )}
                               {activeTask.need && (
                                 <div className="maps-navigation-box">
-                                  {activeTask.pickupLatitude && activeTask.need.latitude && (
+                                  {driverLat != null && driverLng != null && activeTask.pickupLatitude && activeTask.need.latitude && (
                                     <a
                                       href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
                                       target="_blank"
@@ -2054,7 +2080,7 @@ export default function Home() {
                                       🗺️ Ruta: Recoger en Origen → Entregar
                                     </a>
                                   )}
-                                  {(!activeTask.pickupLatitude && activeTask.need.latitude) && (
+                                  {driverLat != null && driverLng != null && !activeTask.pickupLatitude && activeTask.need.latitude && (
                                     <a
                                       href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
                                       target="_blank"

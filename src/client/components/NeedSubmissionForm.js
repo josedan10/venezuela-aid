@@ -26,8 +26,14 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
   const [serverMessage, setServerMessage] = useState('');
   const [serverError, setServerError] = useState('');
 
+  const hasPrefillOrigin = prefill?.latitude != null && prefill?.longitude != null;
+
   useEffect(() => {
-    if (!prefill) return;
+    if (!prefill) {
+      setCollectionCenterId('');
+      setCollectionCenterName('');
+      return;
+    }
     if (prefill.latitude != null) setLatitude(prefill.latitude);
     if (prefill.longitude != null) setLongitude(prefill.longitude);
     if (prefill.state) setState(prefill.state);
@@ -38,8 +44,9 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
   }, [prefill]);
 
   useEffect(() => {
+    if (hasPrefillOrigin) return;
     detectGPS();
-  }, []);
+  }, [hasPrefillOrigin]);
 
   const detectGPS = () => {
     setGpsAttempted(true);
@@ -79,42 +86,44 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
   };
 
   const handleItemChange = (index, field, value) => {
-    const updated = [...selectedItems];
-    if (field === 'quantity') {
-      updated[index][field] = parseInt(value, 10) || 0;
-    } else {
-      updated[index][field] = value;
-    }
-    setSelectedItems(updated);
+    setSelectedItems((prev) => {
+      const updated = [...prev];
+      if (field === 'quantity') {
+        updated[index] = { ...updated[index], [field]: parseInt(value, 10) || 0 };
+      } else {
+        updated[index] = { ...updated[index], [field]: value };
+      }
+      return updated;
+    });
   };
 
   const handleItemSelect = (index, catalogItem) => {
-    const updated = [...selectedItems];
-    if (catalogItem) {
-      updated[index] = {
-        ...updated[index],
-        itemId: catalogItem.id,
-        itemName: catalogItem.name,
-        category: catalogItem.category,
-      };
-    } else {
-      updated[index] = {
-        ...updated[index],
-        itemId: '',
-        itemName: '',
-      };
-    }
-    setSelectedItems(updated);
+    setSelectedItems((prev) => {
+      const updated = [...prev];
+      if (catalogItem) {
+        updated[index] = {
+          ...updated[index],
+          itemId: catalogItem.id,
+          itemName: catalogItem.name,
+          category: catalogItem.category,
+        };
+      } else {
+        updated[index] = {
+          ...updated[index],
+          itemId: '',
+          itemName: '',
+        };
+      }
+      return updated;
+    });
   };
 
   const addItemRow = () => {
-    setSelectedItems([...selectedItems, { itemId: '', itemName: '', category: '', quantity: 1 }]);
+    setSelectedItems((prev) => [...prev, { itemId: '', itemName: '', category: '', quantity: 1 }]);
   };
 
   const removeItemRow = (index) => {
-    if (selectedItems.length > 1) {
-      setSelectedItems(selectedItems.filter((_, idx) => idx !== index));
-    }
+    setSelectedItems((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== index) : prev));
   };
 
   const validate = () => {
@@ -190,7 +199,11 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
       setDescription('');
       setUrgencyRating(3);
       setSelectedItems([{ itemId: '', itemName: '', category: '', quantity: 1 }]);
-      detectGPS();
+      setCollectionCenterId('');
+      setCollectionCenterName('');
+      if (!hasPrefillOrigin) {
+        detectGPS();
+      }
 
       if (onNeedSubmitted) {
         setTimeout(() => onNeedSubmitted(data), 1500);

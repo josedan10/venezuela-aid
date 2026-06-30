@@ -93,6 +93,14 @@ export class UsersService {
       throw new BadRequestException('La cédula ya está registrada para otro conductor.');
     }
 
+    if (user.driverDetails?.status === DriverStatus.REJECTED) {
+      throw new BadRequestException('Su cuenta de conductor fue rechazada y no puede actualizar el perfil.');
+    }
+
+    const isUpdate = Boolean(user.driverDetails);
+    const status = isUpdate ? user.driverDetails!.status : DriverStatus.VERIFIED;
+    const verifiedAt = isUpdate ? user.driverDetails!.verifiedAt : new Date();
+
     const driverData = {
       cedula: details.cedula,
       vehicleCategory: details.vehicleCategory,
@@ -100,8 +108,8 @@ export class UsersService {
       vehicleDetails: details.vehicleDetails,
       licensePlate: details.licensePlate,
       licenseDocUrl: details.licenseDocUrl || null,
-      status: DriverStatus.VERIFIED,
-      verifiedAt: new Date(),
+      status,
+      verifiedAt,
     };
 
     if (user.driverDetails) {
@@ -245,6 +253,9 @@ export class UsersService {
   }
 
   async updateAlertRadius(userId: string, alertRadiusKm: number) {
+    if (typeof alertRadiusKm !== 'number' || !Number.isFinite(alertRadiusKm)) {
+      throw new BadRequestException('El radio de alerta debe ser un número válido.');
+    }
     if (alertRadiusKm < 1 || alertRadiusKm > 100) {
       throw new BadRequestException('El radio de alerta debe estar entre 1 y 100 km.');
     }

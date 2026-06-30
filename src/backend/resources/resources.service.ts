@@ -20,7 +20,7 @@ export class ResourcesService implements OnModuleInit {
     }, 12 * 60 * 60 * 1000); // 12 hours
   }
 
-  async createResource(dto: CreateResourceDto) {
+  async createResource(dto: CreateResourceDto, donorId?: string | null) {
     let itemId = dto.itemId;
     let name = dto.name?.trim();
     let category = dto.category;
@@ -63,10 +63,11 @@ export class ResourcesService implements OnModuleInit {
         const center = await tx.collectionCenter.findUnique({
           where: { id: dto.collectionCenterId },
         });
-        if (center) {
-          latitude = center.latitude;
-          longitude = center.longitude;
+        if (!center) {
+          throw new BadRequestException('El centro de acopio indicado no existe.');
         }
+        latitude = center.latitude;
+        longitude = center.longitude;
       }
 
       const resource = await tx.resource.create({
@@ -76,7 +77,7 @@ export class ResourcesService implements OnModuleInit {
           category,
           stockQuantity: dto.stockQuantity,
           expirationDate: parsedExpDate,
-          donorId: dto.donorId ?? null,
+          donorId: donorId ?? null,
           latitude,
           longitude,
           collectionCenterId: dto.collectionCenterId ?? null,

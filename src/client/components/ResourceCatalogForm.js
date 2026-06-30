@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ItemAutocomplete from './ItemAutocomplete';
 
-export default function ResourceCatalogForm({ token, onResourceCataloged, collectionCenters = [], currentUserId = null }) {
+export default function ResourceCatalogForm({ token, onResourceCataloged, collectionCenters = [] }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [category, setCategory] = useState('');
   const [stockQuantity, setStockQuantity] = useState('');
@@ -17,17 +17,21 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
   const [serverError, setServerError] = useState('');
 
   useEffect(() => {
-    if (useGps && typeof window !== 'undefined' && navigator.geolocation) {
+    if (!useGps || collectionCenterId) return;
+    if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setLatitude(pos.coords.latitude);
           setLongitude(pos.coords.longitude);
         },
-        () => {},
-        { enableHighAccuracy: true, timeout: 5000 }
+        () => {
+          setLatitude(null);
+          setLongitude(null);
+        },
+        { enableHighAccuracy: true, timeout: 5000 },
       );
     }
-  }, [useGps]);
+  }, [useGps, collectionCenterId]);
 
   const handleCenterChange = (centerId) => {
     setCollectionCenterId(centerId);
@@ -38,6 +42,10 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
         setLongitude(center.longitude);
         setUseGps(false);
       }
+    } else {
+      setLatitude(null);
+      setLongitude(null);
+      setUseGps(true);
     }
   };
 
@@ -48,12 +56,20 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
     }
   };
 
+  const handleGpsToggle = (checked) => {
+    setUseGps(checked);
+    if (!checked) {
+      setLatitude(null);
+      setLongitude(null);
+    }
+  };
+
   const validate = () => {
     const tempErrors = {};
     if (!selectedItem?.id) tempErrors.item = 'Seleccione o cree un ítem del catálogo.';
 
-    const qty = parseInt(stockQuantity, 10);
-    if (isNaN(qty) || qty < 1) {
+    const qty = Number(stockQuantity);
+    if (!Number.isInteger(qty) || qty < 1 || String(stockQuantity).includes('.')) {
       tempErrors.stockQuantity = 'La cantidad debe ser un número entero mayor o igual a 1.';
     }
 
@@ -73,6 +89,12 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
       }
     }
 
+    const hasCenter = Boolean(collectionCenterId);
+    const hasGps = useGps && latitude != null && longitude != null;
+    if (!hasCenter && !hasGps) {
+      tempErrors.location = 'Indique un centro de acopio o active la ubicación GPS con coordenadas válidas.';
+    }
+
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
   };
@@ -87,14 +109,17 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
     setLoading(true);
 
     try {
+      const qty = parseInt(stockQuantity, 10);
       const payload = {
         itemId: selectedItem.id,
-        stockQuantity: parseInt(stockQuantity, 10),
-        donorId: currentUserId || undefined,
-        latitude: latitude ?? undefined,
-        longitude: longitude ?? undefined,
+        stockQuantity: qty,
         collectionCenterId: collectionCenterId || undefined,
       };
+
+      if (!collectionCenterId && useGps && latitude != null && longitude != null) {
+        payload.latitude = latitude;
+        payload.longitude = longitude;
+      }
 
       if (expirationDate) {
         payload.expirationDate = new Date(expirationDate).toISOString();
@@ -104,7 +129,7 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify(payload),
       });
@@ -122,6 +147,8 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
       setStockQuantity('');
       setExpirationDate('');
       setCollectionCenterId('');
+      setLatitude(null);
+      setLongitude(null);
       setUseGps(true);
 
       if (onResourceCataloged) {
@@ -161,6 +188,7 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
             id="res-quantity"
             type="number"
             min="1"
+            step="1"
             placeholder="Ej. 100"
             value={stockQuantity}
             onChange={(e) => setStockQuantity(e.target.value)}
@@ -203,17 +231,19 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
               <input
                 type="checkbox"
                 checked={useGps}
-                onChange={(e) => setUseGps(e.target.checked)}
+                onChange={(e) => handleGpsToggle(e.target.checked)}
               />
               Usar mi ubicación GPS como punto de origen de la oferta
             </label>
-            {latitude != null && (
+            {latitude != null && longitude != null && (
               <span style={{ color: 'var(--success-color)' }}>
                 📍 {latitude.toFixed(4)}, {longitude.toFixed(4)}
               </span>
             )}
           </div>
         )}
+
+        {errors.location && <span className="error-message">{errors.location}</span>}
 
         {serverMessage && <div className="alert alert-success">{serverMessage}</div>}
         {serverError && <div className="alert alert-error">{serverError}</div>}
