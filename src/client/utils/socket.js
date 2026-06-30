@@ -15,6 +15,11 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:500
 export function initSocket(driverId, callbacks = {}, userId = null) {
   if (typeof window === 'undefined') return null;
 
+  if (socket?.connected && socket.io.opts.query?.userId === String(userId ?? '') &&
+      socket.io.opts.query?.driverId === String(driverId ?? '')) {
+    return socket;
+  }
+
   if (socket) {
     socket.disconnect();
   }

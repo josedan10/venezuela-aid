@@ -112,8 +112,14 @@ export const AuthProvider = ({ children }) => {
           }
         }
         if (data) {
-          setDbUser(data.user);
-          localStorage.setItem('firebase:dbUser', JSON.stringify(data.user));
+          setDbUser((prev) => {
+            const next = data.user;
+            if (prev?.id === next?.id && prev?.updatedAt === next?.updatedAt) {
+              return prev;
+            }
+            localStorage.setItem('firebase:dbUser', JSON.stringify(next));
+            return next;
+          });
         } else {
           setDbUser(null);
           localStorage.removeItem('firebase:dbUser');

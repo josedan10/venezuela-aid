@@ -1,9 +1,14 @@
 import '../styles/globals.css';
-import React from 'react';
+import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { AuthProvider } from '../context/AuthContext';
+import { unregisterStaleServiceWorkers } from '../utils/serviceWorkerCleanup';
 
 function MyApp({ Component, pageProps }) {
+  useEffect(() => {
+    unregisterStaleServiceWorkers();
+  }, []);
+
   return (
     <AuthProvider>
       <Head>

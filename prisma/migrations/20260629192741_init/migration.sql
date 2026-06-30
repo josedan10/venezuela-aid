@@ -4,9 +4,12 @@ CREATE TABLE `User` (
     `firebaseId` VARCHAR(191) NOT NULL,
     `email` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
-    `role` ENUM('DONOR', 'NGO', 'DRIVER', 'ADMIN') NOT NULL,
+    `roles` VARCHAR(191) NOT NULL DEFAULT 'DONOR',
+    `selfieUrl` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `teamId` VARCHAR(191) NULL,
+    `shareLocationWithTeam` BOOLEAN NOT NULL DEFAULT false,
 
     UNIQUE INDEX `User_firebaseId_key`(`firebaseId`),
     UNIQUE INDEX `User_email_key`(`email`),
@@ -20,7 +23,7 @@ CREATE TABLE `DriverDetails` (
     `cedula` VARCHAR(191) NOT NULL,
     `vehicleDetails` VARCHAR(191) NOT NULL,
     `licensePlate` VARCHAR(191) NOT NULL,
-    `licenseDocUrl` VARCHAR(191) NOT NULL,
+    `licenseDocUrl` VARCHAR(191) NULL,
     `status` ENUM('PENDING_APPROVAL', 'VERIFIED', 'REJECTED') NOT NULL DEFAULT 'PENDING_APPROVAL',
     `verifiedAt` DATETIME(3) NULL,
 
@@ -98,6 +101,37 @@ CREATE TABLE `DispatchTask` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `CollectionCenter` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `description` TEXT NOT NULL,
+    `latitude` DOUBLE NOT NULL,
+    `longitude` DOUBLE NOT NULL,
+    `address` TEXT NULL,
+    `services` VARCHAR(191) NOT NULL,
+    `createdById` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Team` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `description` VARCHAR(191) NULL,
+    `creatorId` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `User` ADD CONSTRAINT `User_teamId_fkey` FOREIGN KEY (`teamId`) REFERENCES `Team`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
 -- AddForeignKey
 ALTER TABLE `DriverDetails` ADD CONSTRAINT `DriverDetails_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -118,3 +152,9 @@ ALTER TABLE `DispatchTask` ADD CONSTRAINT `DispatchTask_needId_fkey` FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE `DispatchTask` ADD CONSTRAINT `DispatchTask_driverId_fkey` FOREIGN KEY (`driverId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CollectionCenter` ADD CONSTRAINT `CollectionCenter_createdById_fkey` FOREIGN KEY (`createdById`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Team` ADD CONSTRAINT `Team_creatorId_fkey` FOREIGN KEY (`creatorId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

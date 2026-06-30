@@ -209,21 +209,22 @@ export default function Home() {
 
   // Handle countdown for proposal
   useEffect(() => {
-    if (activeProposal && proposalCountdown > 0) {
-      countdownIntervalRef.current = setInterval(() => {
-        setProposalCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownIntervalRef.current);
-            setActiveProposal(null);
-            refreshNeeds();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    if (!activeProposal || proposalCountdown <= 0) return;
+
+    countdownIntervalRef.current = setInterval(() => {
+      setProposalCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current);
+          setActiveProposal(null);
+          refreshNeeds();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => clearInterval(countdownIntervalRef.current);
-  }, [activeProposal, proposalCountdown]);
+  }, [activeProposal]);
 
   // Clean GPS loop on unmount
   useEffect(() => {
@@ -471,95 +472,102 @@ export default function Home() {
 
   // Unified Socket.io connection & listener hook
   useEffect(() => {
-    if (currentUser && authToken) {
-      const isDriver = currentUser.roles.split(',').includes('DRIVER');
-      const socketInstance = initSocket(
-        isDriver ? currentUser.id : null,
-        {
-          onProposal: (payload) => {
-            setActiveProposal(payload);
-            setProposalCountdown(payload.timeoutSeconds || 60);
-          },
-          onConnect: async () => {
-            console.log('[Socket] Conectado al servidor.');
-            if (myTeam?.inTeam) {
-              socketInstance.emit('join_team', { teamId: myTeam.team.id });
-            }
-            const coords = await getBufferedCoordinates();
-            setOfflineCount(coords.length);
-          },
-          onDisconnect: () => {
-            console.log('[Socket] Desconectado.');
-          }
+    const userId = currentUser?.id;
+    const teamId = myTeam?.team?.id;
+
+    if (!userId || !authToken) return;
+
+    const isDriver = currentUser.roles.split(',').includes('DRIVER');
+    const socketInstance = initSocket(
+      isDriver ? userId : null,
+      {
+        onProposal: (payload) => {
+          setActiveProposal(payload);
+          setProposalCountdown(payload.timeoutSeconds || 60);
         },
-        currentUser.id
-      );
+        onConnect: async () => {
+          console.log('[Socket] Conectado al servidor.');
+          if (myTeam?.inTeam && myTeam?.team?.id) {
+            socketInstance.emit('join_team', { teamId: myTeam.team.id });
+          }
+          const coords = await getBufferedCoordinates();
+          setOfflineCount(coords.length);
+        },
+        onDisconnect: () => {
+          console.log('[Socket] Desconectado.');
+        }
+      },
+      userId
+    );
 
-      socketInstance.on('team_location_update', (data) => {
-        console.log('[Team Socket] Recibida actualización de ubicación de miembro:', data);
-        setMyTeam((prev) => {
-          if (!prev || !prev.inTeam) return prev;
-          const updatedMembers = prev.team.members.map((m) => {
-            if (m.id === data.userId) {
-              return {
-                ...m,
-                location: {
-                  latitude: data.latitude,
-                  longitude: data.longitude,
-                  updatedAt: data.timestamp,
-                },
-              };
-            }
-            return m;
-          });
-          return {
-            ...prev,
-            team: {
-              ...prev.team,
-              members: updatedMembers,
-            },
-          };
-        });
-      });
-
-      return () => {
-        disconnectSocket();
-      };
+    if (teamId) {
+      socketInstance.emit('join_team', { teamId });
     }
-  }, [currentUser, authToken, myTeam?.team?.id]);
+
+    socketInstance.on('team_location_update', (data) => {
+      console.log('[Team Socket] Recibida actualización de ubicación de miembro:', data);
+      setMyTeam((prev) => {
+        if (!prev || !prev.inTeam) return prev;
+        const updatedMembers = prev.team.members.map((m) => {
+          if (m.id === data.userId) {
+            return {
+              ...m,
+              location: {
+                latitude: data.latitude,
+                longitude: data.longitude,
+                updatedAt: data.timestamp,
+              },
+            };
+          }
+          return m;
+        });
+        return {
+          ...prev,
+          team: {
+            ...prev.team,
+            members: updatedMembers,
+          },
+        };
+      });
+    });
+
+    return () => {
+      disconnectSocket();
+    };
+  }, [currentUser?.id, authToken, myTeam?.team?.id]);
 
   // Geolocation sharing push hook
   useEffect(() => {
-    let interval = null;
-    if (currentUser && myTeam?.inTeam && teamSharing && !offlineSimulation) {
-      console.log('[Team GPS] Iniciando envío periódico de ubicación...');
-      if (userGeolocation) {
-        sendLocation(null, userGeolocation.lat, userGeolocation.lng);
-      }
+    if (!currentUser?.id || !myTeam?.inTeam || !teamSharing || offlineSimulation) return;
 
-      interval = setInterval(() => {
-        if (typeof window !== 'undefined' && navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition((pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            setUserGeolocation({ lat, lng });
-            sendLocation(null, lat, lng);
-          });
-        }
-      }, 15000);
-    }
+    let interval = null;
+    console.log('[Team GPS] Iniciando envío periódico de ubicación...');
+
+    const pushCurrentLocation = () => {
+      if (typeof window === 'undefined' || !navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setUserGeolocation({ lat, lng });
+        sendLocation(null, lat, lng);
+      });
+    };
+
+    pushCurrentLocation();
+    interval = setInterval(pushCurrentLocation, 15000);
+
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [currentUser, myTeam?.inTeam, teamSharing, userGeolocation, offlineSimulation]);
+  }, [currentUser?.id, myTeam?.inTeam, teamSharing, offlineSimulation]);
 
   // Fetch available teams and details once the DB profile is confirmed ready
   useEffect(() => {
-    if (authToken && currentUser) {
+    if (authToken && currentUser?.id) {
       fetchMyTeamDetails();
       fetchAvailableTeams();
     }
-  }, [authToken, currentUser]);
+  }, [authToken, currentUser?.id]);
 
   useEffect(() => {
     if (showProfileModal && currentUser) setProfileName(currentUser.name);
