@@ -20,6 +20,15 @@ enum DriverStatus {
   REJECTED
 }
 
+enum VehicleCategory {
+  MOTO
+  SEDAN
+  PICKUP
+  SUV_4X4
+  VAN
+  TRUCK
+}
+
 model User {
   id                String             @id @default(uuid())
   firebaseId        String             @unique
@@ -27,12 +36,14 @@ model User {
   name              String
   roles             String             @default("DONOR") // Comma-separated roles: DONOR, NGO, DRIVER, ADMIN
   selfieUrl         String?            @db.Text
+  alertRadiusKm     Int                @default(15) // Driver alert radius for nearby help notifications
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   driverDetails     DriverDetails?
   needsCreated      Need[]             @relation("NGONeeds")
   dispatches        DispatchTask[]     @relation("DriverDispatches")
   collectionCenters CollectionCenter[] @relation("UserCollectionCenters")
+  donatedResources  Resource[]         @relation("DonorResources")
   teamId            String?
   team              Team?              @relation("TeamMembers", fields: [teamId], references: [id])
   createdTeams      Team[]             @relation("TeamCreator")
@@ -40,15 +51,17 @@ model User {
 }
 
 model DriverDetails {
-  id             String       @id @default(uuid())
-  userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id])
-  cedula         String       @unique
-  vehicleDetails String
-  licensePlate   String
-  licenseDocUrl  String?
-  status         DriverStatus @default(PENDING_APPROVAL)
-  verifiedAt     DateTime?
+  id              String           @id @default(uuid())
+  userId          String           @unique
+  user            User             @relation(fields: [userId], references: [id])
+  cedula          String           @unique
+  vehicleCategory VehicleCategory
+  seatCount       Int
+  vehicleDetails  String // Marca, modelo, color u otros detalles
+  licensePlate    String
+  licenseDocUrl   String?
+  status          DriverStatus     @default(PENDING_APPROVAL)
+  verifiedAt      DateTime?
 }
 
 enum ResourceCategory {
@@ -60,16 +73,37 @@ enum ResourceCategory {
   RESCUE_TEAMS
 }
 
+// Master catalog of requestable item types (classified by category).
+model Item {
+  id        String           @id @default(uuid())
+  name      String
+  category  ResourceCategory
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  resources Resource[]
+  needItems NeedItem[]
+
+  @@unique([name, category])
+}
+
 model Resource {
-  id             String           @id @default(uuid())
-  name           String
-  category       ResourceCategory
-  stockQuantity  Int              @default(0)
-  expirationDate DateTime? // Required if category is MEDICINES or FOOD
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  stockTrans     StockTransaction[]
-  needItems      NeedItem[]
+  id                 String            @id @default(uuid())
+  itemId             String
+  item               Item              @relation(fields: [itemId], references: [id])
+  name               String
+  category           ResourceCategory
+  stockQuantity      Int               @default(0)
+  expirationDate     DateTime? // Required if category is MEDICINES or FOOD
+  donorId            String?
+  donor              User?             @relation("DonorResources", fields: [donorId], references: [id])
+  latitude           Float? // Origin location of this offer/stock
+  longitude          Float?
+  collectionCenterId String?
+  collectionCenter   CollectionCenter? @relation("CenterResources", fields: [collectionCenterId], references: [id])
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  stockTrans         StockTransaction[]
+  fulfilledItems     NeedItem[]        @relation("MatchedResource")
 }
 
 model StockTransaction {
@@ -89,30 +123,41 @@ enum NeedStatus {
 }
 
 model Need {
-  id            String         @id @default(uuid())
-  ngoId         String
-  ngo           User           @relation("NGONeeds", fields: [ngoId], references: [id])
-  description   String
-  urgencyScore  Int // calculated priority: 1-100
-  isImmediate   Boolean        @default(false) // urgencyScore >= 80 -> "ATENCIÓN INMEDIATA"
-  state         String // Manual fallback for Estado
-  sector        String // Manual fallback for Sector
-  latitude      Float?
-  longitude     Float?
-  status        NeedStatus     @default(PENDING)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  items         NeedItem[]
-  dispatchTasks DispatchTask[]
+  id                 String            @id @default(uuid())
+  ngoId              String
+  ngo                User              @relation("NGONeeds", fields: [ngoId], references: [id])
+  description        String
+  urgencyScore       Int // calculated priority: 1-100
+  isImmediate        Boolean           @default(false) // urgencyScore >= 80 -> "ATENCIÓN INMEDIATA"
+  state              String // Manual fallback for Estado
+  sector             String // Manual fallback for Sector
+  latitude           Float?
+  longitude          Float?
+  collectionCenterId String?
+  collectionCenter   CollectionCenter? @relation("CenterNeeds", fields: [collectionCenterId], references: [id])
+  originLatitude     Float? // Pickup/origin point — people waiting here
+  originLongitude    Float?
+  originLabel        String?
+  status             NeedStatus        @default(PENDING)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  items              NeedItem[]
+  dispatchTasks      DispatchTask[]
 }
 
 model NeedItem {
-  id         String   @id @default(uuid())
-  needId     String
-  need       Need     @relation(fields: [needId], references: [id])
-  resourceId String
-  resource   Resource @relation(fields: [resourceId], references: [id])
-  quantity   Int
+  id                String    @id @default(uuid())
+  needId            String
+  need              Need      @relation(fields: [needId], references: [id])
+  itemId            String
+  item              Item      @relation(fields: [itemId], references: [id])
+  quantity          Int
+  matchedResourceId String?
+  matchedResource   Resource? @relation("MatchedResource", fields: [matchedResourceId], references: [id])
+  pickupLatitude    Float?
+  pickupLongitude   Float?
+  pickupDistanceKm  Float?
+  pickupLabel       String?
 }
 
 enum DispatchStatus {
@@ -126,33 +171,38 @@ enum DispatchStatus {
 }
 
 model DispatchTask {
-  id           String         @id @default(uuid())
-  needId       String
-  need         Need           @relation(fields: [needId], references: [id])
-  driverId     String
-  driver       User           @relation("DriverDispatches", fields: [driverId], references: [id])
-  status       DispatchStatus @default(PROPOSED)
-  proposedAt   DateTime       @default(now())
-  acceptedAt   DateTime?
-  timeoutAt    DateTime
-  signatureUrl String?
-  photoUrl     String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id               String         @id @default(uuid())
+  needId           String
+  need             Need           @relation(fields: [needId], references: [id])
+  driverId         String
+  driver           User           @relation("DriverDispatches", fields: [driverId], references: [id])
+  status           DispatchStatus @default(PROPOSED)
+  proposedAt       DateTime       @default(now())
+  acceptedAt       DateTime?
+  timeoutAt        DateTime
+  pickupLatitude   Float?
+  pickupLongitude  Float?
+  pickupLabel      String?
+  signatureUrl     String?
+  photoUrl         String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 model CollectionCenter {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   name        String
-  description String   @db.Text
+  description String     @db.Text
   latitude    Float
   longitude   Float
-  address     String?  @db.Text
+  address     String?    @db.Text
   services    String // Comma-separated list of services, e.g. "Comida,Medicina,Refugio"
   createdById String?
-  createdBy   User?    @relation("UserCollectionCenters", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User?      @relation("UserCollectionCenters", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  resources   Resource[] @relation("CenterResources")
+  needs       Need[]     @relation("CenterNeeds")
 }
 
 model Team {

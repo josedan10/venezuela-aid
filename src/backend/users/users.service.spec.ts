@@ -3,7 +3,7 @@ import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
-import { DriverStatus } from '@prisma/client';
+import { DriverStatus, VehicleCategory } from '@prisma/client';
 import { Role } from './role.enum';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 
@@ -22,6 +22,7 @@ describe('UsersService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      findMany: jest.fn(),
     },
   };
 
@@ -92,7 +93,7 @@ describe('UsersService', () => {
   });
 
   describe('completeDriverProfile', () => {
-    it('should successfully complete driver profile and set status to PENDING_APPROVAL', async () => {
+    it('should successfully complete driver profile and auto-verify the driver', async () => {
       const mockUser = {
         id: 'driver-id-123',
         roles: 'DRIVER',
@@ -100,6 +101,8 @@ describe('UsersService', () => {
       };
       const details = {
         cedula: 'V-12345678',
+        vehicleCategory: VehicleCategory.SUV_4X4,
+        seatCount: 5,
         vehicleDetails: 'Toyota Hilux',
         licensePlate: 'ABC12D',
         licenseDocUrl: 'https://storage.local/license.pdf',
@@ -111,7 +114,7 @@ describe('UsersService', () => {
 
       const result = await service.completeDriverProfile('driver-id-123', details);
 
-      expect(result.message).toBe('Perfil de conductor actualizado y enviado para revisión del administrador.');
+      expect(result.message).toBe('Perfil de conductor guardado. Ya puede conectarse y recibir asignaciones.');
       expect(prisma.driverDetails.create).toHaveBeenCalled();
     });
 
@@ -123,6 +126,8 @@ describe('UsersService', () => {
       };
       const details = {
         cedula: 'V-87654321',
+        vehicleCategory: VehicleCategory.SEDAN,
+        seatCount: 4,
         vehicleDetails: 'Ford Fiesta',
         licensePlate: 'DEF34G',
       };
@@ -133,15 +138,18 @@ describe('UsersService', () => {
 
       const result = await service.completeDriverProfile('driver-id-123', details);
 
-      expect(result.message).toBe('Perfil de conductor actualizado y enviado para revisión del administrador.');
+      expect(result.message).toBe('Perfil de conductor guardado. Ya puede conectarse y recibir asignaciones.');
       expect(prisma.driverDetails.create).toHaveBeenCalledWith({
         data: {
           userId: 'driver-id-123',
           cedula: 'V-87654321',
+          vehicleCategory: VehicleCategory.SEDAN,
+          seatCount: 4,
           vehicleDetails: 'Ford Fiesta',
           licensePlate: 'DEF34G',
           licenseDocUrl: null,
-          status: DriverStatus.PENDING_APPROVAL,
+          status: DriverStatus.VERIFIED,
+          verifiedAt: expect.any(Date),
         },
       });
     });
@@ -199,7 +207,7 @@ describe('UsersService', () => {
       expect(redis.setDriverAvailability).toHaveBeenCalledWith(driverId, true);
     });
 
-    it('should throw BadRequestException if driver is not verified', async () => {
+    it('should auto-verify pending drivers when toggling availability', async () => {
       const driverId = 'driver-id-123';
       const mockDriver = {
         id: driverId,
@@ -208,9 +216,33 @@ describe('UsersService', () => {
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(mockDriver);
+      mockPrisma.driverDetails.update.mockResolvedValue({});
+      mockRedis.setDriverAvailability.mockResolvedValue(true);
+
+      const result = await service.toggleAvailability(driverId, true);
+
+      expect(result.available).toBe(true);
+      expect(prisma.driverDetails.update).toHaveBeenCalledWith({
+        where: { userId: driverId },
+        data: {
+          status: DriverStatus.VERIFIED,
+          verifiedAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('should throw BadRequestException if driver is rejected', async () => {
+      const driverId = 'driver-id-123';
+      const mockDriver = {
+        id: driverId,
+        roles: 'DRIVER',
+        driverDetails: { status: DriverStatus.REJECTED },
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockDriver);
 
       await expect(service.toggleAvailability(driverId, true)).rejects.toThrow(
-        new BadRequestException('La cuenta de conductor no está verificada.'),
+        new BadRequestException('La cuenta de conductor fue rechazada.'),
       );
     });
   });
