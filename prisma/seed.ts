@@ -18,6 +18,7 @@ async function main() {
   await prisma.need.deleteMany({});
   await prisma.stockTransaction.deleteMany({});
   await prisma.resource.deleteMany({});
+  await prisma.item.deleteMany({});
   await prisma.collectionCenter.deleteMany({});
   await prisma.driverDetails.deleteMany({});
   await prisma.user.deleteMany({});
@@ -75,7 +76,9 @@ async function main() {
       driverDetails: {
         create: {
           cedula: 'V-12345678',
-          vehicleDetails: 'Toyota Hilux 4x4, Color Blanco',
+          vehicleCategory: 'SUV_4X4',
+          seatCount: 5,
+          vehicleDetails: 'Toyota Hilux, Color Blanco',
           licensePlate: 'ABC12D',
           licenseDocUrl: 'https://storage.googleapis.com/ve-aid-licenses/v12345678.pdf',
           status: DriverStatus.VERIFIED,
@@ -95,6 +98,8 @@ async function main() {
       driverDetails: {
         create: {
           cedula: 'V-87654321',
+          vehicleCategory: 'PICKUP',
+          seatCount: 5,
           vehicleDetails: 'Chevrolet Silverado, Color Gris',
           licensePlate: 'XYZ98W',
           licenseDocUrl: 'https://storage.googleapis.com/ve-aid-licenses/v87654321.pdf',
@@ -133,14 +138,43 @@ async function main() {
 
   console.log('Collection centers seeded.');
 
-  // 4. Create Resources with origin locations
+  // 4. Create catalog items
+  const itemInsulina = await prisma.item.create({
+    data: { name: 'Insulina Humana 100 UI/ml', category: ResourceCategory.MEDICINES },
+  });
+  const itemSuero = await prisma.item.create({
+    data: { name: 'Suero Fisiológico 0.9%', category: ResourceCategory.MEDICINES },
+  });
+  const itemHarina = await prisma.item.create({
+    data: { name: 'Harina de Maíz Precocida 1kg', category: ResourceCategory.FOOD },
+  });
+  const itemArroz = await prisma.item.create({
+    data: { name: 'Arroz Blanco 1kg', category: ResourceCategory.FOOD },
+  });
+  const itemSangre = await prisma.item.create({
+    data: { name: 'Donantes de Sangre O Negativo', category: ResourceCategory.BLOOD_DONORS },
+  });
+  const itemVoluntarios = await prisma.item.create({
+    data: { name: 'Voluntarios de Logística y Carga', category: ResourceCategory.HELPERS },
+  });
+  const itemGenerador = await prisma.item.create({
+    data: { name: 'Generador Eléctrico 5kVA', category: ResourceCategory.MACHINES },
+  });
+  const itemRescate = await prisma.item.create({
+    data: { name: 'Equipo de Búsqueda y Rescate K9', category: ResourceCategory.RESCUE_TEAMS },
+  });
+
+  console.log('Catalog items seeded.');
+
+  // 5. Create donor offers (resources) with origin locations
   const futureDate = new Date();
   futureDate.setFullYear(futureDate.getFullYear() + 1);
 
   const insulina = await prisma.resource.create({
     data: {
-      name: 'Insulina Humana 100 UI/ml',
-      category: ResourceCategory.MEDICINES,
+      itemId: itemInsulina.id,
+      name: itemInsulina.name,
+      category: itemInsulina.category,
       stockQuantity: 150,
       expirationDate: futureDate,
       donorId: donor.id,
@@ -152,8 +186,9 @@ async function main() {
 
   const suero = await prisma.resource.create({
     data: {
-      name: 'Suero Fisiológico 0.9%',
-      category: ResourceCategory.MEDICINES,
+      itemId: itemSuero.id,
+      name: itemSuero.name,
+      category: itemSuero.category,
       stockQuantity: 300,
       expirationDate: futureDate,
       donorId: donor.id,
@@ -165,8 +200,9 @@ async function main() {
 
   const harina = await prisma.resource.create({
     data: {
-      name: 'Harina de Maíz Precocida 1kg',
-      category: ResourceCategory.FOOD,
+      itemId: itemHarina.id,
+      name: itemHarina.name,
+      category: itemHarina.category,
       stockQuantity: 1000,
       expirationDate: futureDate,
       donorId: donor.id,
@@ -178,8 +214,9 @@ async function main() {
 
   const arroz = await prisma.resource.create({
     data: {
-      name: 'Arroz Blanco 1kg',
-      category: ResourceCategory.FOOD,
+      itemId: itemArroz.id,
+      name: itemArroz.name,
+      category: itemArroz.category,
       stockQuantity: 800,
       expirationDate: futureDate,
       donorId: donor.id,
@@ -192,32 +229,36 @@ async function main() {
   // Other categories (no expiration required)
   await prisma.resource.create({
     data: {
-      name: 'Donantes de Sangre O Negativo',
-      category: ResourceCategory.BLOOD_DONORS,
+      itemId: itemSangre.id,
+      name: itemSangre.name,
+      category: itemSangre.category,
       stockQuantity: 15,
     },
   });
 
   await prisma.resource.create({
     data: {
-      name: 'Voluntarios de Logística y Carga',
-      category: ResourceCategory.HELPERS,
+      itemId: itemVoluntarios.id,
+      name: itemVoluntarios.name,
+      category: itemVoluntarios.category,
       stockQuantity: 50,
     },
   });
 
   await prisma.resource.create({
     data: {
-      name: 'Generador Eléctrico 5kVA',
-      category: ResourceCategory.MACHINES,
+      itemId: itemGenerador.id,
+      name: itemGenerador.name,
+      category: itemGenerador.category,
       stockQuantity: 5,
     },
   });
 
   await prisma.resource.create({
     data: {
-      name: 'Equipo de Búsqueda y Rescate K9',
-      category: ResourceCategory.RESCUE_TEAMS,
+      itemId: itemRescate.id,
+      name: itemRescate.name,
+      category: itemRescate.category,
       stockQuantity: 3,
     },
   });
@@ -253,7 +294,7 @@ async function main() {
       items: {
         create: [
           {
-            resourceId: insulina.id,
+            itemId: itemInsulina.id,
             quantity: 50,
             matchedResourceId: insulina.id,
             pickupLatitude: centerCatia.latitude,
@@ -284,7 +325,7 @@ async function main() {
       items: {
         create: [
           {
-            resourceId: harina.id,
+            itemId: itemHarina.id,
             quantity: 200,
             matchedResourceId: harina.id,
             pickupLatitude: centerPetare.latitude,
@@ -293,7 +334,7 @@ async function main() {
             pickupLabel: centerPetare.name,
           },
           {
-            resourceId: arroz.id,
+            itemId: itemArroz.id,
             quantity: 150,
             matchedResourceId: arroz.id,
             pickupLatitude: centerPetare.latitude,

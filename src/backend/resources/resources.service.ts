@@ -1,11 +1,15 @@
 import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ItemsService } from '../items/items.service';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { ResourceCategory, Resource } from '@prisma/client';
 
 @Injectable()
 export class ResourcesService implements OnModuleInit {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private itemsService: ItemsService,
+  ) {}
 
   onModuleInit() {
     // Start the periodic expiration check (simulating a cron job every 12 hours)
@@ -17,7 +21,27 @@ export class ResourcesService implements OnModuleInit {
   }
 
   async createResource(dto: CreateResourceDto) {
-    const isFoodOrMed = dto.category === ResourceCategory.FOOD || dto.category === ResourceCategory.MEDICINES;
+    let itemId = dto.itemId;
+    let name = dto.name?.trim();
+    let category = dto.category;
+
+    if (itemId) {
+      const catalogItem = await this.itemsService.findById(itemId);
+      if (!catalogItem) {
+        throw new BadRequestException('El ítem del catálogo no existe.');
+      }
+      name = catalogItem.name;
+      category = catalogItem.category;
+    } else if (name && category) {
+      const catalogItem = await this.itemsService.findOrCreate(name, category);
+      itemId = catalogItem.id;
+      name = catalogItem.name;
+      category = catalogItem.category;
+    } else {
+      throw new BadRequestException('Debe indicar itemId o nombre y categoría del ítem.');
+    }
+
+    const isFoodOrMed = category === ResourceCategory.FOOD || category === ResourceCategory.MEDICINES;
 
     let parsedExpDate: Date | null = null;
     if (isFoodOrMed) {
@@ -47,8 +71,9 @@ export class ResourcesService implements OnModuleInit {
 
       const resource = await tx.resource.create({
         data: {
-          name: dto.name,
-          category: dto.category,
+          itemId,
+          name,
+          category,
           stockQuantity: dto.stockQuantity,
           expirationDate: parsedExpDate,
           donorId: dto.donorId ?? null,
@@ -57,6 +82,7 @@ export class ResourcesService implements OnModuleInit {
           collectionCenterId: dto.collectionCenterId ?? null,
         },
         include: {
+          item: true,
           donor: { select: { name: true } },
           collectionCenter: { select: { name: true, latitude: true, longitude: true } },
         },
@@ -126,6 +152,7 @@ export class ResourcesService implements OnModuleInit {
   async listResources() {
     return this.prisma.resource.findMany({
       include: {
+        item: true,
         donor: { select: { id: true, name: true } },
         collectionCenter: { select: { id: true, name: true, latitude: true, longitude: true } },
       },

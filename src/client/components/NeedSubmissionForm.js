@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import LocationDropdown from './LocationDropdown';
+import ItemAutocomplete from './ItemAutocomplete';
 
-export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = null }) {
+export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, prefill = null }) {
   const [description, setDescription] = useState('');
   const [urgencyRating, setUrgencyRating] = useState(3);
   const [state, setState] = useState(prefill?.state || '');
@@ -10,12 +11,11 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
   const [longitude, setLongitude] = useState(prefill?.longitude ?? null);
   const [collectionCenterId, setCollectionCenterId] = useState(prefill?.collectionCenterId || '');
   const [collectionCenterName, setCollectionCenterName] = useState(prefill?.collectionCenterName || '');
-  
-  // Available resource list to choose from
-  const [resources, setResources] = useState([]);
-  // Selected items in the need: { resourceId, quantity }
-  const [selectedItems, setSelectedItems] = useState([{ resourceId: '', quantity: 1 }]);
-  
+
+  const [selectedItems, setSelectedItems] = useState([
+    { itemId: '', itemName: '', category: '', quantity: 1 },
+  ]);
+
   const [gpsAttempted, setGpsAttempted] = useState(false);
   const [gpsError, setGpsError] = useState(false);
   const [gpsSuccess, setGpsSuccess] = useState(false);
@@ -26,7 +26,6 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
   const [serverMessage, setServerMessage] = useState('');
   const [serverError, setServerError] = useState('');
 
-  // Apply prefill when user selects a collection center on the map
   useEffect(() => {
     if (!prefill) return;
     if (prefill.latitude != null) setLatitude(prefill.latitude);
@@ -38,22 +37,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
     if (prefill.description) setDescription(prefill.description);
   }, [prefill]);
 
-  // Fetch available resources when mounting
   useEffect(() => {
-    async function fetchResources() {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/resources`);
-        if (response.ok) {
-          const data = await response.json();
-          setResources(data);
-        }
-      } catch (err) {
-        console.error('Error fetching resources:', err);
-      }
-    }
-    fetchResources();
-    
-    // Automatically try to acquire GPS coordinates when mounting
     detectGPS();
   }, []);
 
@@ -69,8 +53,6 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
           setLatitude(position.coords.latitude);
           setLongitude(position.coords.longitude);
           setGpsSuccess(true);
-          // Set some default state/sector based on coordinates if desired, 
-          // but we still let them refine it.
         },
         (error) => {
           console.warn('GPS coordinates acquisition failed:', error);
@@ -79,7 +61,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
           setLatitude(null);
           setLongitude(null);
         },
-        { enableHighAccuracy: true, timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 5000 },
       );
     } else {
       setGpsError(true);
@@ -90,7 +72,6 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
   const handleLocationChange = (location) => {
     setState(location.state);
     setSector(location.sector);
-    // If native GPS coordinates are disabled, fallback to manual selection's coordinates
     if (gpsError) {
       setLatitude(location.latitude);
       setLongitude(location.longitude);
@@ -107,14 +88,32 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
     setSelectedItems(updated);
   };
 
+  const handleItemSelect = (index, catalogItem) => {
+    const updated = [...selectedItems];
+    if (catalogItem) {
+      updated[index] = {
+        ...updated[index],
+        itemId: catalogItem.id,
+        itemName: catalogItem.name,
+        category: catalogItem.category,
+      };
+    } else {
+      updated[index] = {
+        ...updated[index],
+        itemId: '',
+        itemName: '',
+      };
+    }
+    setSelectedItems(updated);
+  };
+
   const addItemRow = () => {
-    setSelectedItems([...selectedItems, { resourceId: '', quantity: 1 }]);
+    setSelectedItems([...selectedItems, { itemId: '', itemName: '', category: '', quantity: 1 }]);
   };
 
   const removeItemRow = (index) => {
     if (selectedItems.length > 1) {
-      const updated = selectedItems.filter((_, idx) => idx !== index);
-      setSelectedItems(updated);
+      setSelectedItems(selectedItems.filter((_, idx) => idx !== index));
     }
   };
 
@@ -124,8 +123,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
     if (!state) tempErrors.state = 'El estado es obligatorio.';
     if (!sector) tempErrors.sector = 'El sector es obligatorio.';
 
-    // Check items
-    const validItems = selectedItems.filter(item => item.resourceId && item.quantity > 0);
+    const validItems = selectedItems.filter((item) => item.itemId && item.quantity > 0);
     if (validItems.length === 0) {
       tempErrors.items = 'Debe agregar al menos un ítem válido con cantidad mayor a 0.';
     }
@@ -144,19 +142,12 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
     setLoading(true);
 
     try {
-      const validItems = selectedItems.filter(item => item.resourceId && item.quantity > 0);
-      
-      // Get NGO ID from token or parse JWT. For simplicity, we can pass NGO ID in the body as expected by the NestJS controller.
-      let ngoId = '';
-      if (token) {
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const payload = JSON.parse(window.atob(base64));
-          ngoId = payload.sub;
-        } catch (jwtErr) {
-          console.error('Error parsing token:', jwtErr);
-        }
+      const validItems = selectedItems
+        .filter((item) => item.itemId && item.quantity > 0)
+        .map((item) => ({ itemId: item.itemId, quantity: item.quantity }));
+
+      if (!ngoId) {
+        throw new Error('Debe iniciar sesión como ONG para registrar una solicitud.');
       }
 
       const payload = {
@@ -175,7 +166,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify(payload),
       });
@@ -186,28 +177,23 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
         throw new Error(data.message || 'Error al enviar necesidad');
       }
 
-      // Check if it is a critical urgency need (calculated urgency score >= 80)
       if (data.urgencyScore >= 80) {
         setServerMessage('Solicitud registrada con prioridad crítica (ATENCIÓN INMEDIATA).');
       } else if (data.matching?.matched > 0) {
         setServerMessage(
-          `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} recursos emparejados cerca del punto de origen.`
+          `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} ítems emparejados cerca del punto de origen.`,
         );
       } else {
         setServerMessage(data.message || 'Solicitud registrada exitosamente.');
       }
-      
-      // Reset form
+
       setDescription('');
       setUrgencyRating(3);
-      setSelectedItems([{ resourceId: '', quantity: 1 }]);
-      // re-trigger GPS detection
+      setSelectedItems([{ itemId: '', itemName: '', category: '', quantity: 1 }]);
       detectGPS();
 
       if (onNeedSubmitted) {
-        setTimeout(() => {
-          onNeedSubmitted(data);
-        }, 1500);
+        setTimeout(() => onNeedSubmitted(data), 1500);
       }
     } catch (err) {
       console.error(err);
@@ -226,7 +212,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
         <div className="gps-alert" style={{ background: 'var(--primary-glow)', color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}>
           <div className="gps-alert-icon">🏠</div>
           <div className="gps-alert-text">
-            Solicitud desde centro de acopio: <strong>{collectionCenterName}</strong> — los recursos se emparejarán cerca de este punto de origen.
+            Solicitud desde centro de acopio: <strong>{collectionCenterName}</strong>
           </div>
         </div>
       )}
@@ -272,7 +258,6 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
           </div>
         </div>
 
-        {/* Location Dropdown falls back to manual input or coordinates based on selection */}
         <LocationDropdown
           onChange={handleLocationChange}
           error={errors.state || errors.sector ? 'El estado y el sector son obligatorios.' : null}
@@ -290,24 +275,20 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
         </div>
 
         <div className="items-section">
-          <h4>Recursos Requeridos *</h4>
+          <h4>Ítems Requeridos *</h4>
+          <p className="items-hint">
+            Busque en el catálogo por categoría o cree un ítem nuevo si no existe.
+          </p>
           {errors.items && <span className="error-message block-error">{errors.items}</span>}
-          
+
           {selectedItems.map((item, index) => (
             <div key={index} className="item-row">
-              <select
-                value={item.resourceId}
-                onChange={(e) => handleItemChange(index, 'resourceId', e.target.value)}
-                className="resource-select"
-              >
-                <option value="">Seleccione Recurso</option>
-                {resources.map((res) => (
-                  <option key={res.id} value={res.id}>
-                    {res.name} (Stock: {res.stockQuantity}) - {res.category}
-                    {res.collectionCenter ? ` @ ${res.collectionCenter.name}` : ''}
-                  </option>
-                ))}
-              </select>
+              <ItemAutocomplete
+                value={item.itemId ? { id: item.itemId, name: item.itemName } : null}
+                category={item.category}
+                onCategoryChange={(cat) => handleItemChange(index, 'category', cat)}
+                onChange={(catalogItem) => handleItemSelect(index, catalogItem)}
+              />
 
               <input
                 type="number"
@@ -331,7 +312,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
           ))}
 
           <button type="button" onClick={addItemRow} className="add-item-btn">
-            + Agregar Otro Recurso
+            + Agregar Otro Ítem
           </button>
         </div>
 
@@ -351,231 +332,63 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = n
           padding: 24px;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
         }
-        h3 {
-          font-size: 20px;
-          margin-bottom: 4px;
-          color: var(--text-primary);
-        }
-        .form-subtitle {
-          color: var(--text-secondary);
-          font-size: 13px;
-          margin-bottom: 20px;
-        }
+        h3 { font-size: 20px; margin-bottom: 4px; color: var(--text-primary); }
+        .form-subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
         .gps-alert {
-          display: flex;
-          gap: 10px;
+          display: flex; gap: 10px;
           background-color: var(--warning-glow);
           color: var(--warning-color);
           border: 1px solid var(--warning-color);
-          padding: 12px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          font-size: 13px;
-          font-weight: 500;
-          line-height: 1.4;
-          animation: slideDown 0.3s ease-out;
+          padding: 12px; border-radius: 8px; margin-bottom: 20px;
+          font-size: 13px; font-weight: 500; line-height: 1.4;
         }
-        .gps-alert-icon {
-          font-size: 16px;
-        }
-        .input-group {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          margin-bottom: 16px;
-        }
-        label {
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--text-secondary);
-        }
+        .input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        label { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
         textarea {
-          padding: 12px;
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-body);
-          color: var(--text-primary);
-          font-size: 14px;
-          outline: none;
-          resize: vertical;
-          font-family: inherit;
-          transition: border-color 0.2s, box-shadow 0.2s;
+          padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);
+          background-color: var(--bg-body); color: var(--text-primary); font-size: 14px;
+          resize: vertical; font-family: inherit;
         }
-        textarea:focus {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px var(--primary-glow);
-        }
-        .urgency-rating-bar {
-          display: flex;
-          gap: 6px;
-          overflow-x: auto;
-          padding-bottom: 4px;
-        }
+        .urgency-rating-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
         .rating-btn {
-          flex: 1;
-          padding: 10px 4px;
-          font-size: 12px;
-          font-weight: 500;
-          background-color: var(--bg-body);
-          border: 1px solid var(--border-color);
-          border-radius: 6px;
-          color: var(--text-secondary);
-          cursor: pointer;
-          transition: all 0.2s;
-          white-space: nowrap;
+          flex: 1; padding: 10px 4px; font-size: 12px; font-weight: 500;
+          background-color: var(--bg-body); border: 1px solid var(--border-color);
+          border-radius: 6px; color: var(--text-secondary); cursor: pointer;
         }
-        .rating-btn.active.rating-1 { background-color: #4caf50; color: white; border-color: #4caf50; }
-        .rating-btn.active.rating-2 { background-color: #8bc34a; color: white; border-color: #8bc34a; }
-        .rating-btn.active.rating-3 { background-color: #ffc107; color: #212121; border-color: #ffc107; }
-        .rating-btn.active.rating-4 { background-color: #ff9800; color: white; border-color: #ff9800; }
-        .rating-btn.active.rating-5 { background-color: var(--error-color); color: white; border-color: var(--error-color); box-shadow: 0 0 8px var(--error-glow); }
-        
-        .gps-status-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-          font-size: 12px;
-          gap: 8px;
-        }
-        .gps-success-msg {
-          color: var(--success-color);
-          font-weight: 500;
-        }
-        .gps-retry-btn {
-          background: none;
-          border: none;
-          color: var(--primary-color);
-          font-weight: 600;
-          cursor: pointer;
-          padding: 0;
-          text-decoration: underline;
-        }
+        .rating-btn.active.rating-5 { background-color: var(--error-color); color: white; }
+        .gps-status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 12px; }
+        .gps-success-msg { color: var(--success-color); font-weight: 500; }
+        .gps-retry-btn { background: none; border: none; color: var(--primary-color); font-weight: 600; cursor: pointer; text-decoration: underline; }
         .items-section {
-          background-color: var(--bg-body);
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          padding: 16px;
-          margin-bottom: 20px;
+          background-color: var(--bg-body); border: 1px solid var(--border-color);
+          border-radius: 8px; padding: 16px; margin-bottom: 20px;
         }
-        h4 {
-          margin-top: 0;
-          margin-bottom: 12px;
-          font-size: 15px;
-          color: var(--text-primary);
-        }
-        .block-error {
-          display: block;
-          margin-bottom: 10px;
-        }
-        .item-row {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 10px;
-          align-items: center;
-        }
-        .resource-select {
-          flex: 1;
-          padding: 10px;
-          font-size: 13px;
-        }
+        h4 { margin-top: 0; margin-bottom: 12px; font-size: 15px; }
+        .items-hint { font-size: 12px; color: var(--text-secondary); margin: -6px 0 12px; line-height: 1.4; }
+        .item-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: flex-start; }
         .quantity-input {
-          width: 80px;
-          padding: 10px;
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background-color: var(--bg-card);
-          color: var(--text-primary);
-          font-size: 13px;
-          outline: none;
+          width: 80px; padding: 10px; border-radius: 8px;
+          border: 1px solid var(--border-color); background-color: var(--bg-card);
+          font-size: 13px; flex-shrink: 0;
         }
         .delete-item-btn {
-          background: none;
-          border: 1px solid var(--border-color);
-          color: var(--text-secondary);
-          width: 36px;
-          height: 36px;
-          border-radius: 8px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background-color 0.2s, color 0.2s;
-        }
-        .delete-item-btn:hover:not(:disabled) {
-          background-color: var(--error-glow);
-          color: var(--error-color);
-          border-color: var(--error-color);
-        }
-        .delete-item-btn:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
+          background: none; border: 1px solid var(--border-color); width: 36px; height: 36px;
+          border-radius: 8px; cursor: pointer; flex-shrink: 0;
         }
         .add-item-btn {
-          background: none;
-          border: 1px dashed var(--primary-color);
-          color: var(--primary-color);
-          width: 100%;
-          padding: 10px;
-          border-radius: 8px;
-          font-weight: 500;
-          cursor: pointer;
-          font-size: 13px;
-          transition: background-color 0.2s;
+          background: none; border: 1px dashed var(--primary-color); color: var(--primary-color);
+          width: 100%; padding: 10px; border-radius: 8px; font-weight: 500; cursor: pointer;
         }
-        .add-item-btn:hover {
-          background-color: var(--primary-glow);
-        }
-        .input-error {
-          border-color: var(--error-color) !important;
-        }
-        .error-message {
-          color: var(--error-color);
-          font-size: 12px;
-        }
-        .alert {
-          padding: 12px;
-          border-radius: 8px;
-          font-size: 14px;
-          margin-bottom: 16px;
-          font-weight: 500;
-        }
-        .alert-success {
-          background-color: var(--success-glow);
-          color: var(--success-color);
-          border: 1px solid var(--success-color);
-        }
-        .alert-error {
-          background-color: var(--error-glow);
-          color: var(--error-color);
-          border: 1px solid var(--error-color);
-        }
+        .alert { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+        .alert-success { background-color: var(--success-glow); color: var(--success-color); border: 1px solid var(--success-color); }
+        .alert-error { background-color: var(--error-glow); color: var(--error-color); border: 1px solid var(--error-color); }
         .submit-btn {
-          width: 100%;
-          background-color: var(--primary-color);
-          color: white;
-          border: none;
-          padding: 12px;
-          border-radius: 8px;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background-color 0.2s, transform 0.1s;
+          width: 100%; background-color: var(--primary-color); color: white; border: none;
+          padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
         }
-        .submit-btn:hover:not(:disabled) {
-          background-color: var(--primary-hover);
-        }
-        .submit-btn:active:not(:disabled) {
-          transform: scale(0.99);
-        }
-        .submit-btn:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        .error-message { color: var(--error-color); font-size: 12px; }
+        .block-error { display: block; margin-bottom: 10px; }
+        .input-error { border-color: var(--error-color) !important; }
       `}</style>
     </div>
   );

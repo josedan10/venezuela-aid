@@ -1,16 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ResourcesService } from './resources.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ItemsService } from '../items/items.service';
+import { BadRequestException } from '@nestjs/common';
 import { ResourceCategory } from '@prisma/client';
 
 describe('ResourcesService', () => {
   let service: ResourcesService;
-  let prisma: PrismaService;
+
+  const mockItemsService = {
+    findById: jest.fn(),
+    findOrCreate: jest.fn(),
+  };
 
   const mockPrisma = {
     $transaction: jest.fn((cb) => cb(mockPrisma)),
     $queryRaw: jest.fn(),
+    collectionCenter: {
+      findUnique: jest.fn(),
+    },
     resource: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -30,16 +38,25 @@ describe('ResourcesService', () => {
           provide: PrismaService,
           useValue: mockPrisma,
         },
+        {
+          provide: ItemsService,
+          useValue: mockItemsService,
+        },
       ],
     }).compile();
 
     service = module.get<ResourcesService>(ResourcesService);
-    prisma = module.get<PrismaService>(PrismaService);
     jest.clearAllMocks();
   });
 
   describe('createResource', () => {
     it('should throw BadRequestException if FOOD category lacks expirationDate', async () => {
+      mockItemsService.findOrCreate.mockResolvedValue({
+        id: 'item-1',
+        name: 'Arroz',
+        category: ResourceCategory.FOOD,
+      });
+
       await expect(
         service.createResource({
           name: 'Arroz',
@@ -52,6 +69,12 @@ describe('ResourcesService', () => {
     it('should throw BadRequestException if MEDICINES category has past expirationDate', async () => {
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 1);
+
+      mockItemsService.findOrCreate.mockResolvedValue({
+        id: 'item-2',
+        name: 'Paracetamol',
+        category: ResourceCategory.MEDICINES,
+      });
 
       await expect(
         service.createResource({
@@ -67,20 +90,27 @@ describe('ResourcesService', () => {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 10);
 
-      const mockResource = {
-        id: 'resource-123',
+      const catalogItem = {
+        id: 'item-3',
         name: 'Paracetamol',
         category: ResourceCategory.MEDICINES,
+      };
+
+      const mockResource = {
+        id: 'resource-123',
+        itemId: catalogItem.id,
+        name: catalogItem.name,
+        category: catalogItem.category,
         stockQuantity: 5,
         expirationDate: futureDate,
       };
 
+      mockItemsService.findById.mockResolvedValue(catalogItem);
       mockPrisma.resource.create.mockResolvedValue(mockResource);
       mockPrisma.stockTransaction.create.mockResolvedValue({});
 
       const result = await service.createResource({
-        name: 'Paracetamol',
-        category: ResourceCategory.MEDICINES,
+        itemId: catalogItem.id,
         stockQuantity: 5,
         expirationDate: futureDate.toISOString(),
       });
@@ -90,14 +120,22 @@ describe('ResourcesService', () => {
     });
 
     it('should successfully create resource without expirationDate if category is not food/medicine', async () => {
-      const mockResource = {
-        id: 'resource-456',
+      const catalogItem = {
+        id: 'item-4',
         name: 'Voluntario',
         category: ResourceCategory.HELPERS,
+      };
+
+      const mockResource = {
+        id: 'resource-456',
+        itemId: catalogItem.id,
+        name: catalogItem.name,
+        category: catalogItem.category,
         stockQuantity: 2,
         expirationDate: null,
       };
 
+      mockItemsService.findOrCreate.mockResolvedValue(catalogItem);
       mockPrisma.resource.create.mockResolvedValue(mockResource);
       mockPrisma.stockTransaction.create.mockResolvedValue({});
 
@@ -141,7 +179,6 @@ describe('ResourcesService', () => {
       await service.checkExpirationJob();
 
       expect(mockPrisma.resource.findMany).toHaveBeenCalled();
-      // adjustStock should be called under the hood (mockPrisma.resource.update & stockTransaction.create)
       expect(mockPrisma.resource.update).toHaveBeenCalledWith({
         where: { id: 'res-expired-1' },
         data: { stockQuantity: 0 },

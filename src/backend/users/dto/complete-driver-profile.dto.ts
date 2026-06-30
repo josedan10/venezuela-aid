@@ -1,7 +1,7 @@
-import { IsString, IsNotEmpty, Matches, IsEnum, IsInt, Min, Max, IsOptional } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { VehicleCategory } from '@prisma/client';
 
-export class RegisterDriverDto {
+export class CompleteDriverProfileDto {
   @IsString({ message: 'La cédula debe ser una cadena de texto.' })
   @IsNotEmpty({ message: 'La cédula es obligatoria.' })
   cedula: string;
@@ -20,10 +20,12 @@ export class RegisterDriverDto {
 
   @IsString({ message: 'La placa debe ser una cadena de texto.' })
   @IsNotEmpty({ message: 'La placa es obligatoria.' })
-  @Matches(/^[A-Z0-9-]{6,10}$/, { message: 'El formato de la placa no es válido. Debe contener entre 6 y 10 caracteres alfanuméricos.' })
+  @Matches(/^[A-Z0-9-]{6,10}$/, {
+    message: 'El formato de la placa no es válido. Debe contener entre 6 y 10 caracteres alfanuméricos.',
+  })
   licensePlate: string;
 
-  @IsString({ message: 'El enlace de la licencia de conducir debe ser una cadena de texto.' })
-  @IsNotEmpty({ message: 'La licencia de conducir es obligatoria para registrarse como conductor.' })
-  licenseDocUrl: string;
+  @IsOptional()
+  @IsString({ message: 'El enlace de la licencia debe ser una cadena de texto.' })
+  licenseDocUrl?: string;
 }

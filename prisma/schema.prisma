@@ -20,6 +20,15 @@ enum DriverStatus {
   REJECTED
 }
 
+enum VehicleCategory {
+  MOTO
+  SEDAN
+  PICKUP
+  SUV_4X4
+  VAN
+  TRUCK
+}
+
 model User {
   id                String             @id @default(uuid())
   firebaseId        String             @unique
@@ -42,15 +51,17 @@ model User {
 }
 
 model DriverDetails {
-  id             String       @id @default(uuid())
-  userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id])
-  cedula         String       @unique
-  vehicleDetails String
-  licensePlate   String
-  licenseDocUrl  String?
-  status         DriverStatus @default(PENDING_APPROVAL)
-  verifiedAt     DateTime?
+  id              String           @id @default(uuid())
+  userId          String           @unique
+  user            User             @relation(fields: [userId], references: [id])
+  cedula          String           @unique
+  vehicleCategory VehicleCategory
+  seatCount       Int
+  vehicleDetails  String // Marca, modelo, color u otros detalles
+  licensePlate    String
+  licenseDocUrl   String?
+  status          DriverStatus     @default(PENDING_APPROVAL)
+  verifiedAt      DateTime?
 }
 
 enum ResourceCategory {
@@ -62,8 +73,23 @@ enum ResourceCategory {
   RESCUE_TEAMS
 }
 
+// Master catalog of requestable item types (classified by category).
+model Item {
+  id        String           @id @default(uuid())
+  name      String
+  category  ResourceCategory
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  resources Resource[]
+  needItems NeedItem[]
+
+  @@unique([name, category])
+}
+
 model Resource {
   id                 String            @id @default(uuid())
+  itemId             String
+  item               Item              @relation(fields: [itemId], references: [id])
   name               String
   category           ResourceCategory
   stockQuantity      Int               @default(0)
@@ -77,7 +103,6 @@ model Resource {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   stockTrans         StockTransaction[]
-  needItems          NeedItem[]        @relation("RequestedResource")
   fulfilledItems     NeedItem[]        @relation("MatchedResource")
 }
 
@@ -124,8 +149,8 @@ model NeedItem {
   id                String    @id @default(uuid())
   needId            String
   need              Need      @relation(fields: [needId], references: [id])
-  resourceId        String
-  resource          Resource  @relation("RequestedResource", fields: [resourceId], references: [id])
+  itemId            String
+  item              Item      @relation(fields: [itemId], references: [id])
   quantity          Int
   matchedResourceId String?
   matchedResource   Resource? @relation("MatchedResource", fields: [matchedResourceId], references: [id])

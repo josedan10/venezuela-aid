@@ -40,7 +40,7 @@ export class DispatchService implements OnModuleInit {
     const need = await this.prisma.need.findUnique({
       where: { id: needId },
       include: {
-        items: { include: { resource: true, matchedResource: true } },
+        items: { include: { item: true, matchedResource: { include: { item: true } } } },
         collectionCenter: true,
       },
     });
@@ -82,7 +82,8 @@ export class DispatchService implements OnModuleInit {
       if (
         !driverUser ||
         !driverUser.roles.split(',').includes(Role.DRIVER) ||
-        driverUser.driverDetails?.status !== DriverStatus.VERIFIED
+        !driverUser.driverDetails ||
+        driverUser.driverDetails.status === DriverStatus.REJECTED
       ) {
         continue;
       }
@@ -139,8 +140,8 @@ export class DispatchService implements OnModuleInit {
     const matchedItems = need.items
       .filter((item) => item.matchedResourceId)
       .map((item) => ({
-        requested: item.resource.name,
-        offer: item.matchedResource?.name ?? item.resource.name,
+        requested: item.item.name,
+        offer: item.matchedResource?.item?.name ?? item.matchedResource?.name ?? item.item.name,
         quantity: item.quantity,
         pickupLabel: item.pickupLabel,
         pickupDistanceKm: item.pickupDistanceKm,
@@ -237,7 +238,7 @@ export class DispatchService implements OnModuleInit {
         include: {
           need: {
             include: {
-              items: { include: { resource: true, matchedResource: true } },
+              items: { include: { item: true, matchedResource: { include: { item: true } } } },
               collectionCenter: true,
             },
           },
@@ -262,14 +263,28 @@ export class DispatchService implements OnModuleInit {
       });
 
       for (const item of needItems) {
-        const stockResourceId = item.matchedResourceId ?? item.resourceId;
+        let stockResourceId = item.matchedResourceId;
+
+        if (!stockResourceId) {
+          const fallback = await tx.resource.findFirst({
+            where: {
+              itemId: item.itemId,
+              stockQuantity: { gte: item.quantity },
+            },
+            orderBy: { stockQuantity: 'desc' },
+          });
+          if (!fallback) {
+            throw new BadRequestException(`Stock insuficiente para el ítem solicitado (ID: ${item.itemId}).`);
+          }
+          stockResourceId = fallback.id;
+        }
 
         const resources = await tx.$queryRaw<any[]>`
           SELECT * FROM Resource WHERE id = ${stockResourceId} FOR UPDATE
         `;
 
         if (!resources || resources.length === 0) {
-          throw new NotFoundException(`Recurso con ID ${item.resourceId} no encontrado.`);
+          throw new NotFoundException(`Recurso con ID ${stockResourceId} no encontrado.`);
         }
 
         const res = resources[0];

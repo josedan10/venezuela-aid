@@ -55,14 +55,14 @@ export class NeedsService {
         status: NeedStatus.PENDING,
         items: {
           create: dto.items.map((item) => ({
-            resourceId: item.resourceId,
+            itemId: item.itemId,
             quantity: item.quantity,
           })),
         },
       },
       include: {
         items: {
-          include: { resource: true, matchedResource: true },
+          include: { item: true, matchedResource: { include: { item: true } } },
         },
         ngo: true,
         collectionCenter: true,
@@ -92,7 +92,7 @@ export class NeedsService {
       },
       include: {
         items: {
-          include: { resource: true, matchedResource: true },
+          include: { item: true, matchedResource: { include: { item: true } } },
         },
         ngo: true,
         collectionCenter: true,
@@ -131,7 +131,7 @@ export class NeedsService {
       where: { id },
       include: {
         items: {
-          include: { resource: true, matchedResource: true },
+          include: { item: true, matchedResource: { include: { item: true } } },
         },
         ngo: true,
         collectionCenter: true,

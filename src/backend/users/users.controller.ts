@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { RegisterDto } from './dto/register.dto';
+import { CompleteDriverProfileDto } from './dto/complete-driver-profile.dto';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
 
 @Controller('users')
@@ -22,8 +23,18 @@ export class UsersController {
 
   @UseGuards(FirebaseAuthGuard)
   @Post('complete-driver-profile')
-  async completeDriverProfile(@Request() req: any, @Body() body: any) {
+  async completeDriverProfile(@Request() req: any, @Body() body: CompleteDriverProfileDto) {
     return this.usersService.completeDriverProfile(req.user.id, body);
+  }
+
+  @Get('drivers/pending')
+  async listPendingDrivers() {
+    return this.usersService.listPendingDrivers();
+  }
+
+  @Get('drivers/fleet')
+  async listFleet() {
+    return this.usersService.listFleet();
   }
 
   @UseGuards(FirebaseAuthGuard)

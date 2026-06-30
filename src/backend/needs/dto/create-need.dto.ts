@@ -2,9 +2,9 @@ import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsNumber, ValidateNe
 import { Type } from 'class-transformer';
 
 export class NeedItemDto {
-  @IsString({ message: 'El ID del recurso debe ser una cadena de texto.' })
-  @IsNotEmpty({ message: 'El ID del recurso es obligatorio.' })
-  resourceId: string;
+  @IsString({ message: 'El ID del ítem debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El ID del ítem es obligatorio.' })
+  itemId: string;
 
   @IsInt({ message: 'La cantidad debe ser un número entero.' })
   @Min(1, { message: 'La cantidad mínima es 1.' })

@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
-
-const CATEGORIES = [
-  { value: 'MEDICINES', label: 'Medicamentos' },
-  { value: 'FOOD', label: 'Alimentos' },
-  { value: 'BLOOD_DONORS', label: 'Donantes de Sangre' },
-  { value: 'HELPERS', label: 'Ayudantes/Voluntarios' },
-  { value: 'MACHINES', label: 'Maquinaria' },
-  { value: 'RESCUE_TEAMS', label: 'Equipos de Rescate' }
-];
+import ItemAutocomplete from './ItemAutocomplete';
 
 export default function ResourceCatalogForm({ token, onResourceCataloged, collectionCenters = [], currentUserId = null }) {
-  const [name, setName] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
   const [category, setCategory] = useState('');
   const [stockQuantity, setStockQuantity] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
@@ -18,7 +10,7 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
   const [useGps, setUseGps] = useState(true);
-  
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverMessage, setServerMessage] = useState('');
@@ -49,23 +41,29 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
     }
   };
 
+  const handleCategoryChange = (nextCategory) => {
+    setCategory(nextCategory);
+    if (nextCategory !== 'MEDICINES' && nextCategory !== 'FOOD') {
+      setExpirationDate('');
+    }
+  };
+
   const validate = () => {
     const tempErrors = {};
-    if (!name.trim()) tempErrors.name = 'El nombre del recurso es obligatorio.';
-    if (!category) tempErrors.category = 'La categoría es obligatoria.';
-    
+    if (!selectedItem?.id) tempErrors.item = 'Seleccione o cree un ítem del catálogo.';
+
     const qty = parseInt(stockQuantity, 10);
     if (isNaN(qty) || qty < 1) {
       tempErrors.stockQuantity = 'La cantidad debe ser un número entero mayor o igual a 1.';
     }
 
-    if (category === 'MEDICINES' || category === 'FOOD') {
+    const itemCategory = selectedItem?.category || category;
+    if (itemCategory === 'MEDICINES' || itemCategory === 'FOOD') {
       if (!expirationDate) {
         tempErrors.expirationDate = 'La fecha de vencimiento es obligatoria para Alimentos y Medicamentos.';
       } else {
         const expDate = new Date(expirationDate);
         const today = new Date();
-        // Clear time components for fair comparison
         today.setHours(0, 0, 0, 0);
         expDate.setHours(0, 0, 0, 0);
 
@@ -90,8 +88,7 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
 
     try {
       const payload = {
-        name,
-        category,
+        itemId: selectedItem.id,
         stockQuantity: parseInt(stockQuantity, 10),
         donorId: currentUserId || undefined,
         latitude: latitude ?? undefined,
@@ -100,7 +97,6 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
       };
 
       if (expirationDate) {
-        // Convert to ISO 8601 string
         payload.expirationDate = new Date(expirationDate).toISOString();
       }
 
@@ -120,9 +116,8 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
       }
 
       setServerMessage(data.message || 'Recurso registrado exitosamente.');
-      
-      // Reset form
-      setName('');
+
+      setSelectedItem(null);
       setCategory('');
       setStockQuantity('');
       setExpirationDate('');
@@ -130,9 +125,7 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
       setUseGps(true);
 
       if (onResourceCataloged) {
-        setTimeout(() => {
-          onResourceCataloged(data.resource);
-        }, 1500);
+        onResourceCataloged(data.resource);
       }
     } catch (err) {
       console.error(err);
@@ -142,6 +135,8 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
     }
   };
 
+  const itemCategory = selectedItem?.category || category;
+
   return (
     <div className="catalog-form-card">
       <h3>Catalogar Recurso</h3>
@@ -149,59 +144,32 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="input-group">
-          <label htmlFor="res-name">Nombre del Recurso / Item *</label>
-          <input
-            id="res-name"
-            type="text"
-            placeholder="Ej. Insulina, Harina de Maíz, Suero Fisiológico"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={errors.name ? 'input-error' : ''}
+          <label>Ítem del catálogo *</label>
+          <ItemAutocomplete
+            value={selectedItem}
+            category={category}
+            onCategoryChange={handleCategoryChange}
+            onChange={setSelectedItem}
+            placeholder="Ej. Insulina, Harina de Maíz..."
           />
-          {errors.name && <span className="error-message">{errors.name}</span>}
+          {errors.item && <span className="error-message">{errors.item}</span>}
         </div>
 
-        <div className="input-row">
-          <div className="input-group">
-            <label htmlFor="res-category">Categoría *</label>
-            <select
-              id="res-category"
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                // Clear expiration date if category doesn't require it
-                if (e.target.value !== 'MEDICINES' && e.target.value !== 'FOOD') {
-                  setExpirationDate('');
-                }
-              }}
-              className={errors.category ? 'input-error' : ''}
-            >
-              <option value="">Seleccione Categoría</option>
-              {CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-            {errors.category && <span className="error-message">{errors.category}</span>}
-          </div>
-
-          <div className="input-group">
-            <label htmlFor="res-quantity">Cantidad *</label>
-            <input
-              id="res-quantity"
-              type="number"
-              min="1"
-              placeholder="Ej. 100"
-              value={stockQuantity}
-              onChange={(e) => setStockQuantity(e.target.value)}
-              className={errors.stockQuantity ? 'input-error' : ''}
-            />
-            {errors.stockQuantity && <span className="error-message">{errors.stockQuantity}</span>}
-          </div>
+        <div className="input-group">
+          <label htmlFor="res-quantity">Cantidad *</label>
+          <input
+            id="res-quantity"
+            type="number"
+            min="1"
+            placeholder="Ej. 100"
+            value={stockQuantity}
+            onChange={(e) => setStockQuantity(e.target.value)}
+            className={errors.stockQuantity ? 'input-error' : ''}
+          />
+          {errors.stockQuantity && <span className="error-message">{errors.stockQuantity}</span>}
         </div>
 
-        {(category === 'MEDICINES' || category === 'FOOD') && (
+        {(itemCategory === 'MEDICINES' || itemCategory === 'FOOD') && (
           <div className="input-group expiration-group">
             <label htmlFor="res-expiration">Fecha de Vencimiento *</label>
             <input
@@ -273,17 +241,6 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
           font-size: 13px;
           margin-bottom: 20px;
         }
-        .input-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-        @media (max-width: 480px) {
-          .input-row {
-            grid-template-columns: 1fr;
-            gap: 0;
-          }
-        }
         .input-group {
           display: flex;
           flex-direction: column;
@@ -295,7 +252,6 @@ export default function ResourceCatalogForm({ token, onResourceCataloged, collec
           font-weight: 500;
           color: var(--text-secondary);
         }
-        input[type="text"],
         input[type="number"],
         input[type="date"],
         select {

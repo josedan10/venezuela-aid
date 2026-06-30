@@ -6,6 +6,7 @@ import { getDistanceKm } from '../common/geo.util';
 const DEFAULT_MATCH_RADIUS_KM = 50;
 
 type ResourceWithRelations = Resource & {
+  item?: { name: string } | null;
   donor?: { name: string } | null;
   collectionCenter?: { name: string; latitude: number; longitude: number } | null;
 };
@@ -14,7 +15,6 @@ type ResourceWithRelations = Resource & {
 export class MatchingService {
   constructor(private prisma: PrismaService) {}
 
-  /** Resolve lat/lng for a resource offer (direct coords or collection center). */
   resolveResourceLocation(resource: ResourceWithRelations): { lat: number; lng: number; label: string } | null {
     if (resource.latitude != null && resource.longitude != null) {
       const label = resource.collectionCenter?.name
@@ -33,7 +33,7 @@ export class MatchingService {
   }
 
   async findBestOffer(
-    resourceId: string,
+    itemId: string,
     category: ResourceCategory,
     quantity: number,
     originLat: number,
@@ -43,15 +43,16 @@ export class MatchingService {
     const candidates = await this.prisma.resource.findMany({
       where: {
         stockQuantity: { gte: quantity },
-        OR: [{ id: resourceId }, { category }],
+        OR: [{ itemId }, { category }],
       },
       include: {
+        item: { select: { name: true } },
         donor: { select: { name: true } },
         collectionCenter: { select: { name: true, latitude: true, longitude: true } },
       },
     });
 
-    let best: { resource: ResourceWithRelations; distanceKm: number; label: string } | null = null;
+    let best: { resource: ResourceWithRelations; distanceKm: number; label: string; score: number } | null = null;
 
     for (const resource of candidates) {
       const loc = this.resolveResourceLocation(resource);
@@ -60,23 +61,23 @@ export class MatchingService {
       const distanceKm = getDistanceKm(originLat, originLng, loc.lat, loc.lng);
       if (distanceKm > radiusKm) continue;
 
-      const exactMatch = resource.id === resourceId;
-      const score = distanceKm - (exactMatch ? 5 : 0); // prefer exact resource within same distance
+      const exactItem = resource.itemId === itemId;
+      const tier = exactItem ? 0 : 1;
+      const score = tier * 1000 + distanceKm;
 
-      if (!best || score < best.distanceKm - (best.resource.id === resourceId ? 5 : 0)) {
-        best = { resource, distanceKm, label: loc.label };
+      if (!best || score < best.score) {
+        best = { resource, distanceKm, label: loc.label, score };
       }
     }
 
-    return best;
+    return best ? { resource: best.resource, distanceKm: best.distanceKm, label: best.label } : null;
   }
 
-  /** Match need items to nearest donor/center offers around the origin point. */
   async matchResourcesForNeed(needId: string) {
     const need = await this.prisma.need.findUnique({
       where: { id: needId },
       include: {
-        items: { include: { resource: true } },
+        items: { include: { item: true } },
         collectionCenter: true,
       },
     });
@@ -105,8 +106,8 @@ export class MatchingService {
     let matched = 0;
     for (const item of need.items) {
       const offer = await this.findBestOffer(
-        item.resourceId,
-        item.resource.category,
+        item.itemId,
+        item.item.category,
         item.quantity,
         originLat,
         originLng,
