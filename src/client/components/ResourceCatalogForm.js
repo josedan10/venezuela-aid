@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const CATEGORIES = [
   { value: 'MEDICINES', label: 'Medicamentos' },
@@ -9,16 +9,45 @@ const CATEGORIES = [
   { value: 'RESCUE_TEAMS', label: 'Equipos de Rescate' }
 ];
 
-export default function ResourceCatalogForm({ token, onResourceCataloged }) {
+export default function ResourceCatalogForm({ token, onResourceCataloged, collectionCenters = [], currentUserId = null }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [stockQuantity, setStockQuantity] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
+  const [collectionCenterId, setCollectionCenterId] = useState('');
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
+  const [useGps, setUseGps] = useState(true);
   
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverMessage, setServerMessage] = useState('');
   const [serverError, setServerError] = useState('');
+
+  useEffect(() => {
+    if (useGps && typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLatitude(pos.coords.latitude);
+          setLongitude(pos.coords.longitude);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+  }, [useGps]);
+
+  const handleCenterChange = (centerId) => {
+    setCollectionCenterId(centerId);
+    if (centerId) {
+      const center = collectionCenters.find((c) => c.id === centerId);
+      if (center) {
+        setLatitude(center.latitude);
+        setLongitude(center.longitude);
+        setUseGps(false);
+      }
+    }
+  };
 
   const validate = () => {
     const tempErrors = {};
@@ -64,6 +93,10 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
         name,
         category,
         stockQuantity: parseInt(stockQuantity, 10),
+        donorId: currentUserId || undefined,
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
+        collectionCenterId: collectionCenterId || undefined,
       };
 
       if (expirationDate) {
@@ -93,6 +126,8 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
       setCategory('');
       setStockQuantity('');
       setExpirationDate('');
+      setCollectionCenterId('');
+      setUseGps(true);
 
       if (onResourceCataloged) {
         setTimeout(() => {
@@ -177,6 +212,38 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
               className={errors.expirationDate ? 'input-error' : ''}
             />
             {errors.expirationDate && <span className="error-message">{errors.expirationDate}</span>}
+          </div>
+        )}
+
+        <div className="input-group">
+          <label htmlFor="res-center">Centro de Acopio (ubicación de la oferta)</label>
+          <select
+            id="res-center"
+            value={collectionCenterId}
+            onChange={(e) => handleCenterChange(e.target.value)}
+          >
+            <option value="">Sin centro — usar mi ubicación GPS</option>
+            {collectionCenters.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {!collectionCenterId && (
+          <div className="gps-status-row" style={{ marginBottom: '16px', fontSize: '12px' }}>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={useGps}
+                onChange={(e) => setUseGps(e.target.checked)}
+              />
+              Usar mi ubicación GPS como punto de origen de la oferta
+            </label>
+            {latitude != null && (
+              <span style={{ color: 'var(--success-color)' }}>
+                📍 {latitude.toFixed(4)}, {longitude.toFixed(4)}
+              </span>
+            )}
           </div>
         )}
 

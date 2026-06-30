@@ -37,6 +37,10 @@ export class CreateNeedDto {
   @IsNumber({}, { message: 'La longitud debe ser un número decimal.' })
   longitude?: number;
 
+  @IsOptional()
+  @IsString()
+  collectionCenterId?: string;
+
   @ValidateNested({ each: true })
   @ArrayNotEmpty({ message: 'Debe agregar al menos un ítem a la necesidad.' })
   @Type(() => NeedItemDto)

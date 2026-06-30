@@ -88,6 +88,9 @@ export default function Home() {
   // Driver settings and nearby Needs
   const [driverRadius, setDriverRadius] = useState(15);
   const [driverGpsSharing, setDriverGpsSharing] = useState(true);
+  const [nearbyNeeds, setNearbyNeeds] = useState([]);
+  const [needPrefill, setNeedPrefill] = useState(null);
+  const radiusSaveTimerRef = useRef(null);
 
   // Selfie capture states
   const [cameraActive, setCameraActive] = useState(false);
@@ -174,6 +177,40 @@ export default function Home() {
     }
   };
 
+  const refreshNearbyNeeds = useCallback(async () => {
+    if (!currentUser?.roles?.split(',').includes('DRIVER')) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/needs/nearby?lat=${driverLat}&lng=${driverLng}&radius=${driverRadius}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setNearbyNeeds(data);
+      }
+    } catch (e) {
+      console.error('Error fetching nearby needs:', e);
+    }
+  }, [currentUser, driverLat, driverLng, driverRadius]);
+
+  const saveAlertRadius = useCallback(async (radius) => {
+    if (!authToken) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/alert-radius`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ alertRadiusKm: radius }),
+      });
+    } catch (e) {
+      console.error('Error saving alert radius:', e);
+    }
+  }, [authToken]);
+
+  const handleDriverRadiusChange = (value) => {
+    setDriverRadius(value);
+    if (radiusSaveTimerRef.current) clearTimeout(radiusSaveTimerRef.current);
+    radiusSaveTimerRef.current = setTimeout(() => saveAlertRadius(value), 500);
+  };
+
   const refreshCollectionCenters = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/collection-centers`);
@@ -206,6 +243,22 @@ export default function Home() {
       fetchPendingDrivers();
     }
   }, [activeTab]);
+
+  // Load saved alert radius from user profile
+  useEffect(() => {
+    if (currentUser?.alertRadiusKm) {
+      setDriverRadius(currentUser.alertRadiusKm);
+    }
+  }, [currentUser?.alertRadiusKm]);
+
+  // Refresh nearby needs when driver location or radius changes
+  useEffect(() => {
+    if (activeTab === 'driver' && currentUser?.roles?.split(',').includes('DRIVER')) {
+      refreshNearbyNeeds();
+      const interval = setInterval(refreshNearbyNeeds, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, currentUser, refreshNearbyNeeds]);
 
   // Handle countdown for proposal
   useEffect(() => {
@@ -815,7 +868,16 @@ export default function Home() {
     } else {
       console.log('[Network Simulator] Conexión de Red Restablecida. Conectando socket...');
       if (currentUser) {
-        initDriverSockets(currentUser.id);
+        initSocket(
+          currentUser.id,
+          {
+            onProposal: (payload) => {
+              setActiveProposal(payload);
+              setProposalCountdown(payload.timeoutSeconds || 60);
+            },
+          },
+          currentUser.id
+        );
         setTimeout(async () => {
           await syncBufferedCoordinates();
           const coords = await getBufferedCoordinates();
@@ -908,6 +970,8 @@ export default function Home() {
       alert(`Error al generar propuesta: ${e.message}`);
     }
   };
+
+  const handleProposeDispatch = simulateDispatchproposal;
 
   // Complete driver profile submit
   const handleCompleteDriverProfile = async (e) => {
@@ -1375,11 +1439,16 @@ export default function Home() {
                           {currentUser && userRoles.includes('NGO') && (
                             <button
                               onClick={() => {
-                                // Pre-fill need creation form coordinates
-                                setNeedLat(selectedPoint.data.latitude);
-                                setNeedLng(selectedPoint.data.longitude);
-                                setNeedState(selectedPoint.data.address?.split(',')[0] || '');
-                                setActiveTab('need');
+                                setNeedPrefill({
+                                  latitude: parseFloat(selectedPoint.data.latitude),
+                                  longitude: parseFloat(selectedPoint.data.longitude),
+                                  state: selectedPoint.data.address?.split(',')[0] || '',
+                                  sector: selectedPoint.data.name,
+                                  collectionCenterId: selectedPoint.data.id,
+                                  collectionCenterName: selectedPoint.data.name,
+                                  description: `Solicitud de recursos en ${selectedPoint.data.name}`,
+                                });
+                                setActiveTab('ngo');
                               }}
                               className="point-action-btn"
                             >
@@ -1515,7 +1584,12 @@ export default function Home() {
                     {currentUser && userRoles.includes('DONOR') ? (
                       <div className="glass-card">
                         <div className="welcome-badge">Aportar Recursos</div>
-                        <ResourceCatalogForm token={authToken} onResourceCataloged={refreshResources} />
+                        <ResourceCatalogForm
+                          token={authToken}
+                          currentUserId={currentUser?.id}
+                          collectionCenters={collectionCentersList}
+                          onResourceCataloged={refreshResources}
+                        />
                       </div>
                     ) : (
                       <div className="auth-required-card glass-card">
@@ -1533,7 +1607,11 @@ export default function Home() {
                     {currentUser && userRoles.includes('NGO') ? (
                       <div className="glass-card">
                         <div className="welcome-badge">Solicitar Insumos</div>
-                        <NeedSubmissionForm token={authToken} onNeedSubmitted={refreshNeeds} />
+                        <NeedSubmissionForm
+                          token={authToken}
+                          prefill={needPrefill}
+                          onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
+                        />
                       </div>
                     ) : (
                       <div className="auth-required-card glass-card">
@@ -1688,47 +1766,45 @@ export default function Home() {
                                     min="1"
                                     max="50"
                                     value={driverRadius}
-                                    onChange={(e) => setDriverRadius(parseInt(e.target.value))}
+                                    onChange={(e) => handleDriverRadiusChange(parseInt(e.target.value))}
                                     className="radius-range-slider"
                                   />
+                                  <p className="setting-hint">Solo recibirá alertas y despachos dentro de este radio desde el punto de origen.</p>
                                 </div>
                               </div>
 
                               {/* Needs in Range Alerts list */}
                               <div className="nearby-needs-card glass-card">
                                 <h4>🔔 Alertas Cercanas en tu Zona ({driverRadius} km)</h4>
+                                <p className="nearby-hint">Priorizadas por proximidad al punto de origen (donde están las personas).</p>
                                 <div className="nearby-needs-list">
-                                  {needsQueue
-                                    .filter(need => need.status === 'PENDING')
-                                    .filter(need => {
-                                      if (!need.latitude || !need.longitude) return false;
-                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
-                                      return dist <= driverRadius;
-                                    })
-                                    .map(need => {
-                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
-                                      return (
-                                        <div key={need.id} className="nearby-need-row">
-                                          <div className="need-meta">
-                                            <span className="need-location">{need.state} - {need.sector}</span>
-                                            <span className="need-distance">{dist.toFixed(1)} km</span>
-                                          </div>
-                                          <p className="need-desc-text">{need.description}</p>
-                                          <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                                            Prioridad: {need.urgencyScore}
-                                          </span>
+                                  {nearbyNeeds.map((need) => (
+                                    <div key={need.id} className="nearby-need-row">
+                                      <div className="need-meta">
+                                        <span className="need-location">
+                                          {need.originLabel || `${need.state} - ${need.sector}`}
+                                        </span>
+                                        <span className="need-distance">{need.distanceKm?.toFixed(1)} km</span>
+                                      </div>
+                                      <p className="need-desc-text">{need.description}</p>
+                                      {need.items?.some((i) => i.matchedResourceId) && (
+                                        <div className="matched-resources-tags">
+                                          {need.items.filter((i) => i.matchedResourceId).map((item) => (
+                                            <span key={item.id} className="match-tag">
+                                              ✓ {item.matchedResource?.name || item.resource?.name} ({item.quantity})
+                                              {item.pickupDistanceKm != null && ` · ${item.pickupDistanceKm.toFixed(1)}km del origen`}
+                                            </span>
+                                          ))}
                                         </div>
-                                      );
-                                    })}
-                                  {needsQueue
-                                    .filter(need => need.status === 'PENDING')
-                                    .filter(need => {
-                                      if (!need.latitude || !need.longitude) return false;
-                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
-                                      return dist <= driverRadius;
-                                    }).length === 0 && (
-                                      <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
-                                    )}
+                                      )}
+                                      <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                                        Prioridad: {need.urgencyScore}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {nearbyNeeds.length === 0 && (
+                                    <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
+                                  )}
                                 </div>
                               </div>
                             </>
@@ -1743,6 +1819,27 @@ export default function Home() {
                               <span className="countdown-timer">{proposalCountdown}s</span>
                             </div>
                             <p className="proposal-desc">{activeProposal.description}</p>
+                            {activeProposal.origin && (
+                              <div className="proposal-route">
+                                <p><strong>📍 Origen (recoger):</strong> {activeProposal.origin.label}</p>
+                                {activeProposal.destination && (
+                                  <p><strong>🏁 Destino (entregar):</strong> {activeProposal.destination.label}</p>
+                                )}
+                              </div>
+                            )}
+                            {activeProposal.matchedItems?.length > 0 && (
+                              <div className="proposal-matches">
+                                <strong>Recursos emparejados:</strong>
+                                <ul>
+                                  {activeProposal.matchedItems.map((item, idx) => (
+                                    <li key={idx}>
+                                      {item.quantity}x {item.requested} → {item.offer}
+                                      {item.pickupLabel && ` @ ${item.pickupLabel}`}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                             <div className="proposal-actions">
                               <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
                               <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
@@ -1757,16 +1854,31 @@ export default function Home() {
                             <div className="task-details">
                               <p>ID: <code>{activeTask.id}</code></p>
                               <p>Ubicación GPS: {driverLat.toFixed(4)}, {driverLng.toFixed(4)}</p>
-                              {activeTask.need && activeTask.need.latitude && activeTask.need.longitude && (
+                              {activeTask.pickupLatitude && activeTask.pickupLongitude && (
+                                <p><strong>Origen:</strong> {activeTask.pickupLabel || 'Punto de recogida'}</p>
+                              )}
+                              {activeTask.need && (
                                 <div className="maps-navigation-box">
-                                  <a 
-                                    href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="google-maps-btn"
-                                  >
-                                    🗺️ Abrir en Google Maps para Navegar
-                                  </a>
+                                  {activeTask.pickupLatitude && activeTask.need.latitude && (
+                                    <a
+                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="google-maps-btn"
+                                    >
+                                      🗺️ Ruta: Recoger en Origen → Entregar
+                                    </a>
+                                  )}
+                                  {(!activeTask.pickupLatitude && activeTask.need.latitude) && (
+                                    <a
+                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="google-maps-btn"
+                                    >
+                                      🗺️ Abrir en Google Maps para Navegar
+                                    </a>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1837,6 +1949,11 @@ export default function Home() {
                               <div key={need.id} className="matching-row">
                                 <div className="matching-info">
                                   <span className="need-title">{need.description}</span>
+                                  <span className="need-sub">
+                                    Origen: {need.originLabel || `${need.state} - ${need.sector}`}
+                                    {need.items?.filter(i => i.matchedResourceId).length > 0 &&
+                                      ` · ${need.items.filter(i => i.matchedResourceId).length}/${need.items.length} recursos emparejados`}
+                                  </span>
                                 </div>
                                 <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
                               </div>
@@ -3157,6 +3274,34 @@ export default function Home() {
           display: flex;
           flex-direction: column;
           gap: 6px;
+        }
+        .nearby-hint, .setting-hint {
+          font-size: 11px;
+          color: var(--text-secondary);
+          margin: 4px 0 8px;
+        }
+        .matched-resources-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        .match-tag {
+          font-size: 10px;
+          background: var(--success-glow);
+          color: var(--success-color);
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .proposal-route, .proposal-matches {
+          font-size: 13px;
+          margin: 8px 0;
+          padding: 8px;
+          background: rgba(0,0,0,0.2);
+          border-radius: 6px;
+        }
+        .proposal-matches ul {
+          margin: 4px 0 0 16px;
+          padding: 0;
         }
         .need-meta {
           display: flex;

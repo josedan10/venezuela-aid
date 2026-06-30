@@ -32,12 +32,33 @@ export class ResourcesService implements OnModuleInit {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      let latitude = dto.latitude ?? null;
+      let longitude = dto.longitude ?? null;
+
+      if (dto.collectionCenterId) {
+        const center = await tx.collectionCenter.findUnique({
+          where: { id: dto.collectionCenterId },
+        });
+        if (center) {
+          latitude = center.latitude;
+          longitude = center.longitude;
+        }
+      }
+
       const resource = await tx.resource.create({
         data: {
           name: dto.name,
           category: dto.category,
           stockQuantity: dto.stockQuantity,
           expirationDate: parsedExpDate,
+          donorId: dto.donorId ?? null,
+          latitude,
+          longitude,
+          collectionCenterId: dto.collectionCenterId ?? null,
+        },
+        include: {
+          donor: { select: { name: true } },
+          collectionCenter: { select: { name: true, latitude: true, longitude: true } },
         },
       });
 
@@ -104,6 +125,10 @@ export class ResourcesService implements OnModuleInit {
 
   async listResources() {
     return this.prisma.resource.findMany({
+      include: {
+        donor: { select: { id: true, name: true } },
+        collectionCenter: { select: { id: true, name: true, latitude: true, longitude: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
 import { NeedsService } from './needs.service';
 import { CreateNeedDto } from './dto/create-need.dto';
 
@@ -8,17 +8,26 @@ export class NeedsController {
 
   @Post()
   async create(@Body() body: any) {
-    // Extract ngoId and the DTO fields. Accept ngoId inside body for ease of integration.
     const { ngoId, ...dtoFields } = body;
     const createNeedDto = Object.assign(new CreateNeedDto(), dtoFields);
-    
-    // Call the service
     return this.needsService.createNeed(ngoId, createNeedDto);
   }
 
   @Get()
   async getQueue() {
     return this.needsService.getPrioritizedQueue();
+  }
+
+  @Get('nearby')
+  async getNearby(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('radius') radius?: string,
+  ) {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const radiusKm = radius ? parseFloat(radius) : 15;
+    return this.needsService.getNearbyNeeds(latitude, longitude, radiusKm);
   }
 
   @Get(':id')

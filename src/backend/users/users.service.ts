@@ -179,4 +179,22 @@ export class UsersService {
     });
     return { message: 'Perfil actualizado correctamente.', user };
   }
+
+  async updateAlertRadius(userId: string, alertRadiusKm: number) {
+    if (alertRadiusKm < 1 || alertRadiusKm > 100) {
+      throw new BadRequestException('El radio de alerta debe estar entre 1 y 100 km.');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { alertRadiusKm },
+      include: { driverDetails: true },
+    });
+
+    return {
+      message: 'Radio de alerta actualizado.',
+      alertRadiusKm: user.alertRadiusKm,
+      user,
+    };
+  }
 }

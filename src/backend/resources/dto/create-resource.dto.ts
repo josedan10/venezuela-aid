@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsISO8601 } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsISO8601, IsNumber } from 'class-validator';
 import { ResourceCategory } from '@prisma/client';
 
 export class CreateResourceDto {
@@ -17,4 +17,20 @@ export class CreateResourceDto {
   @IsOptional()
   @IsISO8601({}, { message: 'La fecha de vencimiento debe tener un formato ISO 8601 válido.' })
   expirationDate?: string;
+
+  @IsOptional()
+  @IsString()
+  donorId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  collectionCenterId?: string;
 }

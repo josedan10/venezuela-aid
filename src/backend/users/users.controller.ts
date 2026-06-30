@@ -47,4 +47,10 @@ export class UsersController {
   async updateProfile(@Request() req: any, @Body() body: any) {
     return this.usersService.updateProfile(req.user.id, body);
   }
+
+  @UseGuards(FirebaseAuthGuard)
+  @Patch('alert-radius')
+  async updateAlertRadius(@Request() req: any, @Body() body: { alertRadiusKm: number }) {
+    return this.usersService.updateAlertRadius(req.user.id, body.alertRadiusKm);
+  }
 }

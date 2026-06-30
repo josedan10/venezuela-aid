@@ -193,7 +193,24 @@ export class DispatchGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   // Emits invitation to driver
-  sendProposalToDriver(driverId: string, payload: { taskId: string; description: string; timeoutSeconds: number }) {
+  sendProposalToDriver(
+    driverId: string,
+    payload: {
+      taskId: string;
+      description: string;
+      timeoutSeconds: number;
+      origin?: { latitude: number; longitude: number; label: string };
+      destination?: { latitude: number; longitude: number; label: string };
+      matchedItems?: Array<{
+        requested: string;
+        offer: string;
+        quantity: number;
+        pickupLabel?: string | null;
+        pickupDistanceKm?: number | null;
+      }>;
+      driverRadiusKm?: number;
+    },
+  ) {
     const socketId = this.activeDriverSockets.get(driverId);
     if (socketId) {
       this.server.to(socketId).emit('dispatch_proposal', payload);

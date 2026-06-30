@@ -37,10 +37,12 @@ export class DispatchService implements OnModuleInit {
   }
 
   async createDispatchTask(needId: string) {
-    // 1. Fetch need details
     const need = await this.prisma.need.findUnique({
       where: { id: needId },
-      include: { items: true },
+      include: {
+        items: { include: { resource: true, matchedResource: true } },
+        collectionCenter: true,
+      },
     });
 
     if (!need) {
@@ -51,53 +53,68 @@ export class DispatchService implements OnModuleInit {
       throw new BadRequestException('Esta necesidad ya no está pendiente.');
     }
 
-    // Coordinates fallback if not set
-    const lat = need.latitude ?? 10.5; // Caracas default
-    const lng = need.longitude ?? -66.9;
+    // Origin point (people waiting / pickup) takes priority over destination
+    const originLat = need.originLatitude ?? need.latitude ?? 10.5;
+    const originLng = need.originLongitude ?? need.longitude ?? -66.9;
+    const destLat = need.latitude ?? originLat;
+    const destLng = need.longitude ?? originLng;
+    const pickupLabel = need.originLabel ?? need.collectionCenter?.name ?? `${need.state} - ${need.sector}`;
 
-    // 2. Query Redis for attempted drivers for this dispatch
     const attemptedDriversKey = `dispatch:${needId}:attempts`;
     const attemptedDrivers = await this.redisService.getClient().smembers(attemptedDriversKey);
 
-    // 3. Find nearby drivers within 100km
-    const nearbyDriverIds = await this.redisService.findNearbyDrivers(lat, lng, 100);
+    // Find drivers near the origin point, respecting each driver's alert radius
+    const nearbyDriverIds = await this.redisService.findNearbyDrivers(originLat, originLng, 100);
 
     let selectedDriverId: string | null = null;
+    let selectedDriverRadius = 15;
 
-    // Filter to find the closest verified, available driver who hasn't been attempted yet
     for (const driverId of nearbyDriverIds) {
       if (attemptedDrivers.includes(driverId)) {
         continue;
       }
 
-      // Check verification status in DB
       const driverUser = await this.prisma.user.findUnique({
         where: { id: driverId },
         include: { driverDetails: true },
       });
 
       if (
-        driverUser &&
-        driverUser.roles.split(',').includes(Role.DRIVER) &&
-        driverUser.driverDetails?.status === DriverStatus.VERIFIED
+        !driverUser ||
+        !driverUser.roles.split(',').includes(Role.DRIVER) ||
+        driverUser.driverDetails?.status !== DriverStatus.VERIFIED
       ) {
-        // Check availability in Redis
-        const availability = await this.redisService.getDriverAvailability(driverId);
-        if (availability === 'Disponible') {
-          selectedDriverId = driverId;
-          break;
+        continue;
+      }
+
+      const availability = await this.redisService.getDriverAvailability(driverId);
+      if (availability !== 'Disponible') {
+        continue;
+      }
+
+      const driverRadius = driverUser.alertRadiusKm ?? 15;
+      const driverPos = await this.redisService.getClient().geopos('drivers:locations', driverId);
+      if (driverPos && driverPos.length >= 2) {
+        const driverLng = parseFloat(String(driverPos[0]));
+        const driverLat = parseFloat(String(driverPos[1]));
+        const distToOrigin = this.haversineKm(driverLat, driverLng, originLat, originLng);
+        if (distToOrigin > driverRadius) {
+          continue;
         }
       }
+
+      selectedDriverId = driverId;
+      selectedDriverRadius = driverRadius;
+      break;
     }
 
     if (!selectedDriverId) {
       return {
         success: false,
-        message: 'No se encontraron conductores disponibles en la zona para este despacho.',
+        message: 'No se encontraron conductores disponibles dentro de su radio de alerta cerca del punto de origen.',
       };
     }
 
-    // 4. Create DispatchTask in DB
     const timeoutAt = new Date();
     timeoutAt.setSeconds(timeoutAt.getSeconds() + 60);
 
@@ -107,29 +124,65 @@ export class DispatchService implements OnModuleInit {
         driverId: selectedDriverId,
         status: DispatchStatus.PROPOSED,
         timeoutAt,
+        pickupLatitude: originLat,
+        pickupLongitude: originLng,
+        pickupLabel,
       },
     });
 
-    // 5. Track attempt in Redis (60 seconds TTL matching proposal timeout)
     await this.redisService.getClient().sadd(attemptedDriversKey, selectedDriverId);
-    await this.redisService.getClient().expire(attemptedDriversKey, 3600); // Keep attempts log for 1 hour
+    await this.redisService.getClient().expire(attemptedDriversKey, 3600);
 
-    // Set proposal timeout key in Redis
     const proposalKey = `dispatch:${task.id}:proposal`;
     await this.redisService.getClient().set(proposalKey, 'PROPOSED', 'EX', 60);
 
-    // 6. Notify driver via Socket.io
+    const matchedItems = need.items
+      .filter((item) => item.matchedResourceId)
+      .map((item) => ({
+        requested: item.resource.name,
+        offer: item.matchedResource?.name ?? item.resource.name,
+        quantity: item.quantity,
+        pickupLabel: item.pickupLabel,
+        pickupDistanceKm: item.pickupDistanceKm,
+      }));
+
     this.dispatchGateway.sendProposalToDriver(selectedDriverId, {
       taskId: task.id,
       description: need.description,
       timeoutSeconds: 60,
+      origin: {
+        latitude: originLat,
+        longitude: originLng,
+        label: pickupLabel,
+      },
+      destination: {
+        latitude: destLat,
+        longitude: destLng,
+        label: `${need.state} - ${need.sector}`,
+      },
+      matchedItems,
+      driverRadiusKm: selectedDriverRadius,
     });
 
     return {
       success: true,
-      message: 'Propuesta de despacho enviada al conductor más cercano.',
+      message: 'Propuesta de despacho enviada al conductor más cercano al punto de origen.',
       task,
     };
+  }
+
+  private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   }
 
   async acceptDispatchTask(driverId: string, taskId: string) {
@@ -181,6 +234,14 @@ export class DispatchService implements OnModuleInit {
           status: DispatchStatus.ACCEPTED,
           acceptedAt: now,
         },
+        include: {
+          need: {
+            include: {
+              items: { include: { resource: true, matchedResource: true } },
+              collectionCenter: true,
+            },
+          },
+        },
       });
 
       // 2. Allocate Need
@@ -201,14 +262,10 @@ export class DispatchService implements OnModuleInit {
       });
 
       for (const item of needItems) {
-        // adjustStock deducts the quantity from active inventory and logs transaction.
-        // We do this inside the transaction. If stock is insufficient, it will roll back.
-        // The adjustStock implementation itself does a raw lock on resource.
-        // Note: since adjustStock does a nested transaction, we can call it directly, or implement the subtraction inline.
-        // Since Prisma nested transactions inside a $transaction run on the same connection, we will update the resource directly here to guarantee absolute transactional safety.
-        
+        const stockResourceId = item.matchedResourceId ?? item.resourceId;
+
         const resources = await tx.$queryRaw<any[]>`
-          SELECT * FROM Resource WHERE id = ${item.resourceId} FOR UPDATE
+          SELECT * FROM Resource WHERE id = ${stockResourceId} FOR UPDATE
         `;
 
         if (!resources || resources.length === 0) {
@@ -221,13 +278,13 @@ export class DispatchService implements OnModuleInit {
         }
 
         await tx.resource.update({
-          where: { id: item.resourceId },
+          where: { id: stockResourceId },
           data: { stockQuantity: res.stockQuantity - item.quantity },
         });
 
         await tx.stockTransaction.create({
           data: {
-            resourceId: item.resourceId,
+            resourceId: stockResourceId,
             quantity: -item.quantity,
             description: `Reservado y descontado para despacho ID: ${taskId}`,
           },

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import LocationDropdown from './LocationDropdown';
 
-export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
+export default function NeedSubmissionForm({ token, onNeedSubmitted, prefill = null }) {
   const [description, setDescription] = useState('');
-  const [urgencyRating, setUrgencyRating] = useState(3); // 1 to 5
-  const [state, setState] = useState('');
-  const [sector, setSector] = useState('');
-  const [latitude, setLatitude] = useState(null);
-  const [longitude, setLongitude] = useState(null);
+  const [urgencyRating, setUrgencyRating] = useState(3);
+  const [state, setState] = useState(prefill?.state || '');
+  const [sector, setSector] = useState(prefill?.sector || '');
+  const [latitude, setLatitude] = useState(prefill?.latitude ?? null);
+  const [longitude, setLongitude] = useState(prefill?.longitude ?? null);
+  const [collectionCenterId, setCollectionCenterId] = useState(prefill?.collectionCenterId || '');
+  const [collectionCenterName, setCollectionCenterName] = useState(prefill?.collectionCenterName || '');
   
   // Available resource list to choose from
   const [resources, setResources] = useState([]);
@@ -23,6 +25,18 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
   const [loading, setLoading] = useState(false);
   const [serverMessage, setServerMessage] = useState('');
   const [serverError, setServerError] = useState('');
+
+  // Apply prefill when user selects a collection center on the map
+  useEffect(() => {
+    if (!prefill) return;
+    if (prefill.latitude != null) setLatitude(prefill.latitude);
+    if (prefill.longitude != null) setLongitude(prefill.longitude);
+    if (prefill.state) setState(prefill.state);
+    if (prefill.sector) setSector(prefill.sector);
+    if (prefill.collectionCenterId) setCollectionCenterId(prefill.collectionCenterId);
+    if (prefill.collectionCenterName) setCollectionCenterName(prefill.collectionCenterName);
+    if (prefill.description) setDescription(prefill.description);
+  }, [prefill]);
 
   // Fetch available resources when mounting
   useEffect(() => {
@@ -153,6 +167,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
         sector,
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
+        collectionCenterId: collectionCenterId || null,
         items: validItems,
       };
 
@@ -174,6 +189,10 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
       // Check if it is a critical urgency need (calculated urgency score >= 80)
       if (data.urgencyScore >= 80) {
         setServerMessage('Solicitud registrada con prioridad crítica (ATENCIÓN INMEDIATA).');
+      } else if (data.matching?.matched > 0) {
+        setServerMessage(
+          `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} recursos emparejados cerca del punto de origen.`
+        );
       } else {
         setServerMessage(data.message || 'Solicitud registrada exitosamente.');
       }
@@ -202,6 +221,15 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
     <div className="need-form-card">
       <h3>Crear Solicitud de Ayuda (Necesidad)</h3>
       <p className="form-subtitle">Registre las carencias urgentes de su comunidad u organización</p>
+
+      {collectionCenterName && (
+        <div className="gps-alert" style={{ background: 'var(--primary-glow)', color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}>
+          <div className="gps-alert-icon">🏠</div>
+          <div className="gps-alert-text">
+            Solicitud desde centro de acopio: <strong>{collectionCenterName}</strong> — los recursos se emparejarán cerca de este punto de origen.
+          </div>
+        </div>
+      )}
 
       {gpsDialogMessage && (
         <div className="gps-alert">
@@ -276,6 +304,7 @@ export default function NeedSubmissionForm({ token, onNeedSubmitted }) {
                 {resources.map((res) => (
                   <option key={res.id} value={res.id}>
                     {res.name} (Stock: {res.stockQuantity}) - {res.category}
+                    {res.collectionCenter ? ` @ ${res.collectionCenter.name}` : ''}
                   </option>
                 ))}
               </select>

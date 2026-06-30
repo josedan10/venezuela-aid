@@ -1,16 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MatchingService } from '../matching/matching.service';
 import { CreateNeedDto } from './dto/create-need.dto';
 import { NeedStatus } from '@prisma/client';
+import { getDistanceKm } from '../common/geo.util';
 
 @Injectable()
 export class NeedsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private matchingService: MatchingService,
+  ) {}
 
   async createNeed(ngoId: string, dto: CreateNeedDto) {
-    // 1. Calculate Priority Score (1-100)
-    // Base score from urgencyRating:
-    // 1 -> 20, 2 -> 40, 3 -> 60, 4 -> 80, 5 -> 95
     let urgencyScore = dto.urgencyRating * 18;
     if (dto.urgencyRating === 5) {
       urgencyScore = 95;
@@ -21,7 +23,21 @@ export class NeedsService {
 
     const isImmediate = urgencyScore >= 80;
 
-    // 2. Create Need and associated items
+    let originLatitude = dto.latitude ?? null;
+    let originLongitude = dto.longitude ?? null;
+    let originLabel: string | null = `${dto.state} - ${dto.sector}`;
+
+    if (dto.collectionCenterId) {
+      const center = await this.prisma.collectionCenter.findUnique({
+        where: { id: dto.collectionCenterId },
+      });
+      if (center) {
+        originLatitude = center.latitude;
+        originLongitude = center.longitude;
+        originLabel = center.name;
+      }
+    }
+
     const need = await this.prisma.need.create({
       data: {
         ngoId,
@@ -32,6 +48,10 @@ export class NeedsService {
         sector: dto.sector,
         latitude: dto.latitude,
         longitude: dto.longitude,
+        collectionCenterId: dto.collectionCenterId ?? null,
+        originLatitude,
+        originLongitude,
+        originLabel,
         status: NeedStatus.PENDING,
         items: {
           create: dto.items.map((item) => ({
@@ -42,11 +62,16 @@ export class NeedsService {
       },
       include: {
         items: {
-          include: { resource: true },
+          include: { resource: true, matchedResource: true },
         },
         ngo: true,
+        collectionCenter: true,
       },
     });
+
+    const matchResult = await this.matchingService.matchResourcesForNeed(need.id);
+
+    const enrichedNeed = await this.getNeedById(need.id);
 
     const message = isImmediate
       ? 'Solicitud registrada con prioridad crítica.'
@@ -54,7 +79,9 @@ export class NeedsService {
 
     return {
       message,
-      need,
+      need: enrichedNeed,
+      matching: matchResult,
+      urgencyScore: need.urgencyScore,
     };
   }
 
@@ -65,9 +92,10 @@ export class NeedsService {
       },
       include: {
         items: {
-          include: { resource: true },
+          include: { resource: true, matchedResource: true },
         },
         ngo: true,
+        collectionCenter: true,
       },
       orderBy: [
         { isImmediate: 'desc' },
@@ -77,14 +105,36 @@ export class NeedsService {
     });
   }
 
+  async getNearbyNeeds(latitude: number, longitude: number, radiusKm: number) {
+    const pending = await this.getPrioritizedQueue();
+
+    return pending
+      .filter((need) => {
+        const originLat = need.originLatitude ?? need.latitude;
+        const originLng = need.originLongitude ?? need.longitude;
+        if (originLat == null || originLng == null) return false;
+        return getDistanceKm(latitude, longitude, originLat, originLng) <= radiusKm;
+      })
+      .map((need) => {
+        const originLat = need.originLatitude ?? need.latitude!;
+        const originLng = need.originLongitude ?? need.longitude!;
+        return {
+          ...need,
+          distanceKm: getDistanceKm(latitude, longitude, originLat, originLng),
+        };
+      })
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+  }
+
   async getNeedById(id: string) {
     const need = await this.prisma.need.findUnique({
       where: { id },
       include: {
         items: {
-          include: { resource: true },
+          include: { resource: true, matchedResource: true },
         },
         ngo: true,
+        collectionCenter: true,
       },
     });
 
