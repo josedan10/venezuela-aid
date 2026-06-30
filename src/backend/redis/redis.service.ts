@@ -6,11 +6,15 @@ import Redis from 'ioredis';
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client: Redis;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   onModuleInit() {
-    const redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://localhost:6380';
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    console.log('REDIS URL:', redisUrl);
     this.client = new Redis(redisUrl);
+    this.client.on('error', (err) => {
+      console.warn('[REDIS] Connection error:', err.message);
+    });
   }
 
   onModuleDestroy() {
