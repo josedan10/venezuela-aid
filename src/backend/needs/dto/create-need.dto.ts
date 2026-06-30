@@ -1,10 +1,10 @@
-import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsNumber, ValidateNested, ArrayNotEmpty } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsNumber, ValidateNested, ArrayNotEmpty, IsUUID } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class NeedItemDto {
-  @IsString({ message: 'El ID del recurso debe ser una cadena de texto.' })
-  @IsNotEmpty({ message: 'El ID del recurso es obligatorio.' })
-  resourceId: string;
+  @IsString({ message: 'El ID del ítem debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El ID del ítem es obligatorio.' })
+  itemId: string;
 
   @IsInt({ message: 'La cantidad debe ser un número entero.' })
   @Min(1, { message: 'La cantidad mínima es 1.' })
@@ -36,6 +36,11 @@ export class CreateNeedDto {
   @IsOptional()
   @IsNumber({}, { message: 'La longitud debe ser un número decimal.' })
   longitude?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  @IsUUID('4', { message: 'El ID del centro de acopio no es válido.' })
+  collectionCenterId?: string;
 
   @ValidateNested({ each: true })
   @ArrayNotEmpty({ message: 'Debe agregar al menos un ítem a la necesidad.' })

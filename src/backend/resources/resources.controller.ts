@@ -1,14 +1,16 @@
-import { Controller, Post, Get, Body, Query, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { ResourcesService } from './resources.service';
 import { CreateResourceDto } from './dto/create-resource.dto';
+import { FirebaseAuthGuard } from '../users/firebase-auth.guard';
 
 @Controller('resources')
 export class ResourcesController {
   constructor(private readonly resourcesService: ResourcesService) {}
 
+  @UseGuards(FirebaseAuthGuard)
   @Post()
-  async create(@Body() dto: CreateResourceDto) {
-    const resource = await this.resourcesService.createResource(dto);
+  async create(@Request() req: any, @Body() dto: CreateResourceDto) {
+    const resource = await this.resourcesService.createResource(dto, req.user.id);
     return {
       message: 'Recurso registrado exitosamente.',
       resource,

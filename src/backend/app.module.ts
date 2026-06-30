@@ -9,6 +9,7 @@ import { NeedsModule } from './needs/needs.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { CollectionCentersModule } from './collection-centers/collection-centers.module';
 import { TeamsModule } from './teams/teams.module';
+import { ItemsModule } from './items/items.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TeamsModule } from './teams/teams.module';
     RedisModule,
     FirebaseModule,
     UsersModule,
+    ItemsModule,
     ResourcesModule,
     NeedsModule,
     DispatchModule,

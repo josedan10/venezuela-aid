@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 
-export default function MapComponent({ needs, collectionCenters, driverLocation, userGeolocation, teamMembers, currentUser, activeTask, onMapClick, mapStyle, onPointClick }) {
+export default function MapComponent({ needs, collectionCenters, driverLocation, userGeolocation, teamMembers, currentUser, activeTask, onMapClick, mapStyle, onPointClick, mapLocked = false }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersGroupRef = useRef(null);
   const polylineRef = useRef(null);
   const tileLayerRef = useRef(null);
   const initialZoomDoneRef = useRef(false);
+  const driverLocationZoomedRef = useRef(false);
   const prevActiveTaskIdRef = useRef(null);
   const currentMapStyleRef = useRef(null);
 
@@ -239,8 +240,10 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
         });
       }
 
-      // Render user current location if present
-      if (userGeolocation && userGeolocation.lat && userGeolocation.lng) {
+      // Render user current location if present (skip duplicate marker for drivers)
+      const showUserMarker = userGeolocation?.lat != null && userGeolocation?.lng != null
+        && !(driverLocation?.lat != null && driverLocation?.lng != null);
+      if (showUserMarker) {
         const uLat = parseFloat(userGeolocation.lat);
         const uLng = parseFloat(userGeolocation.lng);
         const userMarker = L.marker([uLat, uLng], { icon: userGeoIcon });
@@ -253,6 +256,11 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
         `);
         userMarker.addTo(markersGroup);
         bounds.push([uLat, uLng]);
+
+        if (!initialZoomDoneRef.current) {
+          map.setView([uLat, uLng], 14);
+          initialZoomDoneRef.current = true;
+        }
       }
 
       // Render other team members on the map
@@ -310,6 +318,12 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
         `);
         driverMarker.addTo(markersGroup);
         bounds.push(driverLatLng);
+
+        if (!driverLocationZoomedRef.current) {
+          map.setView(driverLatLng, Math.max(map.getZoom(), 13));
+          driverLocationZoomedRef.current = true;
+          initialZoomDoneRef.current = true;
+        }
       }
 
       // If there is an activeTask route, draw a polyline to destination
@@ -374,6 +388,26 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
     };
   }, [needs, collectionCenters, driverLocation, userGeolocation, teamMembers, currentUser, activeTask, onMapClick, mapStyle, onPointClick]);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const handlers = [
+      ['dragging', map.dragging],
+      ['touchZoom', map.touchZoom],
+      ['doubleClickZoom', map.doubleClickZoom],
+      ['scrollWheelZoom', map.scrollWheelZoom],
+      ['boxZoom', map.boxZoom],
+      ['keyboard', map.keyboard],
+    ];
+
+    handlers.forEach(([, handler]) => {
+      if (!handler) return;
+      if (mapLocked) handler.disable();
+      else handler.enable();
+    });
+  }, [mapLocked]);
+
   // Handle lifecycle unmount
   useEffect(() => {
     return () => {
@@ -385,7 +419,7 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
   }, []);
 
   return (
-    <div className="map-wrapper">
+    <div className={`map-wrapper ${mapLocked ? 'map-locked' : ''}`}>
       {onMapClick && (
         <div className="map-instruction-banner">
           🗺️ Haz clic en cualquier lugar del mapa para registrar un nuevo Centro de Acopio.
@@ -404,6 +438,9 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
           margin: 0;
           z-index: 1;
           overflow: hidden;
+        }
+        .map-wrapper.map-locked {
+          pointer-events: none;
         }
 
         .map-instruction-banner {

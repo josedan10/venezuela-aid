@@ -3,10 +3,13 @@ import Head from 'next/head';
 import RegisterForm from '../components/RegisterForm';
 import ResourceCatalogForm from '../components/ResourceCatalogForm';
 import NeedSubmissionForm from '../components/NeedSubmissionForm';
+import CollapsiblePanel from '../components/CollapsiblePanel';
 import dynamic from 'next/dynamic';
 
 const MapComponent = dynamic(() => import('../components/MapComponent'), { ssr: false });
 import { initSocket, sendLocation, disconnectSocket, syncBufferedCoordinates } from '../utils/socket';
+import { formatNeedItemLabel, isNeedItemMatched } from '../utils/needItems';
+import { VEHICLE_CATEGORIES, getVehicleCategoryLabel, formatVehicleSummary } from '../utils/vehicleCategories';
 import { getBufferedCoordinates, hasBufferedCoordinates } from '../utils/indexeddb';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -17,6 +20,7 @@ export default function Home() {
   const currentUser = dbUser;
   const [activeTab, setActiveTab] = useState('mapa_publico'); // mapa_publico, donor, ngo, driver, admin, register
   const [showPanels, setShowPanels] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   // Login fields
   const [loginEmail, setLoginEmail] = useState('');
@@ -26,6 +30,7 @@ export default function Home() {
 
   // Admin simulation state
   const [pendingDrivers, setPendingDrivers] = useState([]);
+  const [fleetDrivers, setFleetDrivers] = useState([]);
   const [adminMessage, setAdminMessage] = useState('');
 
   // Resources state
@@ -48,6 +53,13 @@ export default function Home() {
   // Panel minimize states
   const [leftMinimized, setLeftMinimized] = useState(false);
   const [rightMinimized, setRightMinimized] = useState(false);
+  const [collapsedPanels, setCollapsedPanels] = useState({});
+
+  const togglePanelCollapse = useCallback((panelId) => {
+    setCollapsedPanels((prev) => ({ ...prev, [panelId]: !prev[panelId] }));
+  }, []);
+
+  const isPanelCollapsed = (panelId) => !!collapsedPanels[panelId];
 
   // Teams state
   const [availableTeams, setAvailableTeams] = useState([]);
@@ -55,11 +67,27 @@ export default function Home() {
   const [teamName, setTeamName] = useState('');
   const [teamDesc, setTeamDesc] = useState('');
   const [teamSharing, setTeamSharing] = useState(false);
-  const [mapStyle, setMapStyle] = useState('light'); // default to light style
+  const [mapStyle, setMapStyle] = useState('light');
   const [selectedPoint, setSelectedPoint] = useState(null);
+
+  const UI_PREFS_KEY = 'ayudavz-ui-prefs';
+  const LIST_PANEL_IDS = [
+    'urgency-queue',
+    'available-inventory',
+    'donor-resources',
+    'driver-nearby-needs',
+    'admin-pending-drivers',
+    'admin-fleet',
+    'admin-matching',
+    'selected-point',
+    'team-members',
+    'available-teams',
+  ];
 
   // Complete Driver Profile form fields
   const [driverCedula, setDriverCedula] = useState('');
+  const [driverVehicleCategory, setDriverVehicleCategory] = useState('');
+  const [driverSeatCount, setDriverSeatCount] = useState('');
   const [driverVehicle, setDriverVehicle] = useState('');
   const [driverPlate, setDriverPlate] = useState('');
   const [driverLicenseUrl, setDriverLicenseUrl] = useState('');
@@ -72,12 +100,13 @@ export default function Home() {
   const [activeProposal, setActiveProposal] = useState(null);
   const [proposalCountdown, setProposalCountdown] = useState(0);
   const [activeTask, setActiveTask] = useState(null);
-  const [gpsIntervalId, setGpsIntervalId] = useState(null);
-  const [driverLat, setDriverLat] = useState(10.5186); // Caracas default
-  const [driverLng, setDriverLng] = useState(-66.9503);
+  const [driverLat, setDriverLat] = useState(null);
+  const [driverLng, setDriverLng] = useState(null);
   const [locationLog, setLocationLog] = useState([]);
   const [offlineSimulation, setOfflineSimulation] = useState(false);
   const [offlineCount, setOfflineCount] = useState(0);
+  const gpsWatchIdRef = useRef(null);
+  const lastGpsSentAtRef = useRef(0);
 
   // Profile modal
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -87,7 +116,10 @@ export default function Home() {
 
   // Driver settings and nearby Needs
   const [driverRadius, setDriverRadius] = useState(15);
-  const [driverGpsSharing, setDriverGpsSharing] = useState(true);
+  const [driverGpsSharing, setDriverGpsSharing] = useState(false);
+  const [nearbyNeeds, setNearbyNeeds] = useState([]);
+  const [needPrefill, setNeedPrefill] = useState(null);
+  const radiusSaveTimerRef = useRef(null);
 
   // Selfie capture states
   const [cameraActive, setCameraActive] = useState(false);
@@ -174,6 +206,41 @@ export default function Home() {
     }
   };
 
+  const refreshNearbyNeeds = useCallback(async () => {
+    if (!currentUser?.roles?.split(',').includes('DRIVER')) return;
+    if (driverLat == null || driverLng == null) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/needs/nearby?lat=${driverLat}&lng=${driverLng}&radius=${driverRadius}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setNearbyNeeds(data);
+      }
+    } catch (e) {
+      console.error('Error fetching nearby needs:', e);
+    }
+  }, [currentUser, driverLat, driverLng, driverRadius]);
+
+  const saveAlertRadius = useCallback(async (radius) => {
+    if (!authToken) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/alert-radius`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ alertRadiusKm: radius }),
+      });
+    } catch (e) {
+      console.error('Error saving alert radius:', e);
+    }
+  }, [authToken]);
+
+  const handleDriverRadiusChange = (value) => {
+    setDriverRadius(value);
+    if (radiusSaveTimerRef.current) clearTimeout(radiusSaveTimerRef.current);
+    radiusSaveTimerRef.current = setTimeout(() => saveAlertRadius(value), 500);
+  };
+
   const refreshCollectionCenters = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/collection-centers`);
@@ -188,10 +255,25 @@ export default function Home() {
 
   const fetchPendingDrivers = async () => {
     try {
-      const mockDrivers = [
-        { id: 'seed-driver-maria-uid', name: 'María Rodríguez', email: 'conductor.maria@gmail.com', roles: 'DRIVER', driverDetails: { status: 'PENDING_APPROVAL', cedula: 'V-87654321', vehicleDetails: 'Chevrolet Silverado, Color Gris', licensePlate: 'XYZ98W', licenseDocUrl: 'https://storage.googleapis.com/ve-aid-licenses/v87654321.pdf' } }
-      ];
-      setPendingDrivers(mockDrivers);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/drivers/pending`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        setPendingDrivers(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchFleetDrivers = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/users/drivers/fleet`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        setFleetDrivers(await res.json());
+      }
     } catch (e) {
       console.error(e);
     }
@@ -199,13 +281,76 @@ export default function Home() {
 
   // Run on mount or tab change
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted || typeof window === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}');
+      if (saved.mapStyle) setMapStyle(saved.mapStyle);
+      if (typeof saved.showPanels === 'boolean') setShowPanels(saved.showPanels);
+      if (typeof saved.leftMinimized === 'boolean') setLeftMinimized(saved.leftMinimized);
+      if (typeof saved.rightMinimized === 'boolean') setRightMinimized(saved.rightMinimized);
+      if (saved.collapsedPanels && typeof saved.collapsedPanels === 'object') {
+        setCollapsedPanels(saved.collapsedPanels);
+      }
+    } catch (e) {
+      console.warn('No se pudieron cargar preferencias de UI:', e);
+    }
+  }, [isMounted]);
+
+  useEffect(() => {
+    if (!isMounted || typeof window === 'undefined') return;
+    localStorage.setItem(
+      UI_PREFS_KEY,
+      JSON.stringify({
+        mapStyle,
+        showPanels,
+        leftMinimized,
+        rightMinimized,
+        collapsedPanels,
+      }),
+    );
+  }, [isMounted, mapStyle, showPanels, leftMinimized, rightMinimized, collapsedPanels]);
+
+  const handleCollapseAllLists = () => {
+    const next = {};
+    LIST_PANEL_IDS.forEach((id) => {
+      next[id] = true;
+    });
+    setCollapsedPanels(next);
+  };
+
+  const handleExpandAllLists = () => {
+    setCollapsedPanels({});
+  };
+
+  useEffect(() => {
     refreshResources();
     refreshNeeds();
     refreshCollectionCenters();
     if (activeTab === 'admin') {
       fetchPendingDrivers();
+      fetchFleetDrivers();
     }
   }, [activeTab]);
+
+  // Load saved alert radius from user profile
+  useEffect(() => {
+    if (currentUser?.alertRadiusKm) {
+      setDriverRadius(currentUser.alertRadiusKm);
+    }
+  }, [currentUser?.alertRadiusKm]);
+
+  // Refresh nearby needs when driver location or radius changes
+  useEffect(() => {
+    if (activeTab === 'driver' && currentUser?.roles?.split(',').includes('DRIVER')) {
+      refreshNearbyNeeds();
+      const interval = setInterval(refreshNearbyNeeds, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, currentUser, refreshNearbyNeeds]);
 
   // Handle countdown for proposal
   useEffect(() => {
@@ -226,12 +371,15 @@ export default function Home() {
     return () => clearInterval(countdownIntervalRef.current);
   }, [activeProposal]);
 
-  // Clean GPS loop on unmount
+  // Clean GPS watch on unmount
   useEffect(() => {
     return () => {
-      if (gpsIntervalId) clearInterval(gpsIntervalId);
+      if (gpsWatchIdRef.current != null && typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        gpsWatchIdRef.current = null;
+      }
     };
-  }, [gpsIntervalId]);
+  }, []);
 
   // Auto-switch to user's dashboard tab on login or refresh.
   // Only redirect away from 'register' tab once logged in, or if the tab
@@ -261,24 +409,30 @@ export default function Home() {
     }
   }, [currentUser, activeTab]);
 
+  const applyDevicePosition = useCallback((lat, lng) => {
+    setUserGeolocation({ lat, lng });
+    if (currentUser?.roles?.split(',').includes('DRIVER')) {
+      setDriverLat(lat);
+      setDriverLng(lng);
+    }
+  }, [currentUser?.roles]);
+
   // Request browser geolocation on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          console.log('[Geolocation] Location obtained:', position.coords.latitude, position.coords.longitude);
-          setUserGeolocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
+          const { latitude, longitude } = position.coords;
+          console.log('[Geolocation] Location obtained:', latitude, longitude);
+          applyDevicePosition(latitude, longitude);
         },
         (error) => {
           console.warn('[Geolocation] Error fetching browser geolocation:', error);
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
-  }, []);
+  }, [applyDevicePosition]);
 
   // Sync offline coordinates regularly
   useEffect(() => {
@@ -548,9 +702,9 @@ export default function Home() {
       navigator.geolocation.getCurrentPosition((pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        setUserGeolocation({ lat, lng });
+        applyDevicePosition(lat, lng);
         sendLocation(null, lat, lng);
-      });
+      }, undefined, { enableHighAccuracy: true, maximumAge: 5000 });
     };
 
     pushCurrentLocation();
@@ -559,7 +713,78 @@ export default function Home() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [currentUser?.id, myTeam?.inTeam, teamSharing, offlineSimulation]);
+  }, [currentUser?.id, myTeam?.inTeam, teamSharing, offlineSimulation, applyDevicePosition]);
+
+  const stopGPSTracking = useCallback(() => {
+    if (gpsWatchIdRef.current != null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      gpsWatchIdRef.current = null;
+    }
+  }, []);
+
+  const startGPSTracking = useCallback(() => {
+    if (!driverGpsSharing) {
+      console.log('[GPS] Rastro GPS desactivado en configuración.');
+      return;
+    }
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      console.warn('[GPS] Geolocalización no disponible en este navegador.');
+      return;
+    }
+    if (!currentUser?.id) return;
+
+    stopGPSTracking();
+    console.log('[GPS] Iniciando rastreo con GPS real del dispositivo...');
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        applyDevicePosition(lat, lng);
+
+        const timestamp = new Date().toLocaleTimeString();
+        setLocationLog((prev) => [
+          { lat, lng, time: timestamp, status: offlineSimulation ? 'Buffered (Offline)' : 'Sent (Online)' },
+          ...prev.slice(0, 19),
+        ]);
+
+        const now = Date.now();
+        if (now - lastGpsSentAtRef.current >= 15000) {
+          lastGpsSentAtRef.current = now;
+          try {
+            await sendLocation(currentUser.id, lat, lng);
+            const coords = await getBufferedCoordinates();
+            setOfflineCount(coords.length);
+          } catch (e) {
+            console.error('Error sending GPS log:', e);
+          }
+        }
+      },
+      (error) => {
+        console.warn('[GPS] watchPosition error:', error);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+  }, [applyDevicePosition, currentUser?.id, driverGpsSharing, offlineSimulation, stopGPSTracking]);
+
+  // Keep driver position synced when GPS sharing is on and driver is active
+  useEffect(() => {
+    const isDriver = currentUser?.roles?.split(',').includes('DRIVER');
+    if (isDriver && driverGpsSharing && (driverAvailable || activeTask)) {
+      startGPSTracking();
+    } else {
+      stopGPSTracking();
+    }
+    return () => stopGPSTracking();
+  }, [currentUser?.id, currentUser?.roles, driverGpsSharing, driverAvailable, activeTask, startGPSTracking, stopGPSTracking]);
+
+  // Backfill driver coords once profile loads after initial geolocation
+  useEffect(() => {
+    if (currentUser?.roles?.split(',').includes('DRIVER') && userGeolocation?.lat != null && userGeolocation?.lng != null) {
+      setDriverLat(userGeolocation.lat);
+      setDriverLng(userGeolocation.lng);
+    }
+  }, [currentUser?.id, currentUser?.roles, userGeolocation]);
 
   // Fetch available teams and details once the DB profile is confirmed ready
   useEffect(() => {
@@ -604,6 +829,7 @@ export default function Home() {
 
       setDriverAvailable(data.available);
       setDriverStatusMessage(data.message);
+      await fetchProfile();
     } catch (err) {
       console.error(err);
       setDriverStatusMessage(`Error: ${err.message}`);
@@ -671,58 +897,8 @@ export default function Home() {
     }
   };
 
-  const startGPSTracking = () => {
-    if (gpsIntervalId) clearInterval(gpsIntervalId);
-    if (!driverGpsSharing) {
-      console.log('[GPS] Rastro GPS desactivado en configuración.');
-      return;
-    }
-
-    console.log('[GPS] Iniciando rastreo de coordenadas...');
-    let lat = 10.5186;
-    let lng = -66.9503;
-
-    const intervalId = setInterval(async () => {
-      lat += (Math.random() - 0.5) * 0.002;
-      lng += (Math.random() - 0.5) * 0.002;
-
-      setDriverLat(lat);
-      setDriverLng(lng);
-
-      const timestamp = new Date().toLocaleTimeString();
-      setLocationLog((prev) => [
-        { lat, lng, time: timestamp, status: offlineSimulation ? 'Buffered (Offline)' : 'Sent (Online)' },
-        ...prev.slice(0, 19),
-      ]);
-
-      try {
-        await sendLocation(currentUser.id, lat, lng);
-        const coords = await getBufferedCoordinates();
-        setOfflineCount(coords.length);
-      } catch (e) {
-        console.error('Error sending GPS log:', e);
-      }
-    }, 15000);
-
-    setGpsIntervalId(intervalId);
-  };
-
-  const stopGPSTracking = () => {
-    if (gpsIntervalId) {
-      clearInterval(gpsIntervalId);
-      setGpsIntervalId(null);
-    }
-  };
-
   const toggleGpsSharing = () => {
-    const nextVal = !driverGpsSharing;
-    setDriverGpsSharing(nextVal);
-    if (nextVal) {
-      if (activeTask) startGPSTracking();
-    } else {
-      stopGPSTracking();
-      sendLocation(currentUser?.id, null, null);
-    }
+    setDriverGpsSharing((prev) => !prev);
   };
 
   const getDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -814,8 +990,40 @@ export default function Home() {
       console.warn('[Network Simulator] Modo Fuera de Línea Activado. El socket se desconectó.');
     } else {
       console.log('[Network Simulator] Conexión de Red Restablecida. Conectando socket...');
-      if (currentUser) {
-        initDriverSockets(currentUser.id);
+      if (currentUser && authToken) {
+        const isDriver = currentUser.roles.split(',').includes('DRIVER');
+        const socketInstance = initSocket(
+          isDriver ? currentUser.id : null,
+          {
+            onProposal: (payload) => {
+              setActiveProposal(payload);
+              setProposalCountdown(payload.timeoutSeconds || 60);
+            },
+            onConnect: async () => {
+              if (myTeam?.inTeam && myTeam?.team?.id) {
+                socketInstance.emit('join_team', { teamId: myTeam.team.id });
+              }
+              const coords = await getBufferedCoordinates();
+              setOfflineCount(coords.length);
+            },
+          },
+          currentUser.id,
+        );
+        if (myTeam?.inTeam && myTeam?.team?.id) {
+          socketInstance.emit('join_team', { teamId: myTeam.team.id });
+        }
+        socketInstance.on('team_location_update', (data) => {
+          setMyTeam((prev) => {
+            if (!prev || !prev.inTeam) return prev;
+            const updatedMembers = prev.team.members.map((m) => {
+              if (m.id === data.userId) {
+                return { ...m, latitude: data.latitude, longitude: data.longitude };
+              }
+              return m;
+            });
+            return { ...prev, team: { ...prev.team, members: updatedMembers } };
+          });
+        });
         setTimeout(async () => {
           await syncBufferedCoordinates();
           const coords = await getBufferedCoordinates();
@@ -885,6 +1093,7 @@ export default function Home() {
 
       setAdminMessage(data.message || 'Conductor aprobado y verificado.');
       fetchPendingDrivers();
+      fetchFleetDrivers();
     } catch (err) {
       setAdminMessage(`Error: ${err.message}`);
     }
@@ -909,14 +1118,22 @@ export default function Home() {
     }
   };
 
+  const handleProposeDispatch = simulateDispatchproposal;
+
   // Complete driver profile submit
   const handleCompleteDriverProfile = async (e) => {
     e.preventDefault();
     setDriverProfileError('');
     setDriverProfileMessage('');
 
-    if (!driverCedula || !driverVehicle || !driverPlate) {
-      setDriverProfileError('La cédula, descripción del vehículo y la placa son obligatorios.');
+    if (!driverCedula || !driverVehicleCategory || !driverSeatCount || !driverVehicle || !driverPlate) {
+      setDriverProfileError('La cédula, tipo de vehículo, asientos, descripción y la placa son obligatorios.');
+      return;
+    }
+
+    const seats = parseInt(driverSeatCount, 10);
+    if (isNaN(seats) || seats < 1 || seats > 60) {
+      setDriverProfileError('El número de asientos debe estar entre 1 y 60.');
       return;
     }
 
@@ -929,6 +1146,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           cedula: driverCedula,
+          vehicleCategory: driverVehicleCategory,
+          seatCount: seats,
           vehicleDetails: driverVehicle,
           licensePlate: driverPlate.toUpperCase(),
           licenseDocUrl: driverLicenseUrl || null,
@@ -1012,7 +1231,7 @@ export default function Home() {
   const userRoles = currentUser ? currentUser.roles.split(',') : [];
 
   const memoizedDriverLocation = useMemo(() => {
-    if (currentUser && userRoles.includes('DRIVER')) {
+    if (currentUser && userRoles.includes('DRIVER') && driverLat != null && driverLng != null) {
       return { lat: driverLat, lng: driverLng };
     }
     return null;
@@ -1022,7 +1241,7 @@ export default function Home() {
     return myTeam?.inTeam ? myTeam.team.members : [];
   }, [myTeam?.inTeam, myTeam?.team?.members]);
 
-  if (loading) {
+  if (!isMounted || loading) {
     return (
       <div className="home-wrapper">
         <div className="app-loading-container">
@@ -1058,8 +1277,11 @@ export default function Home() {
     );
   }
 
-  // If user is authenticated but has no selfie, force selfie capture!
-  if (currentUser && !currentUser.selfieUrl) {
+  // Defer identity selfie until drivers complete vehicle profile first
+  const userRolesForGate = currentUser ? currentUser.roles.split(',') : [];
+  const driverNeedsVehicleProfile = userRolesForGate.includes('DRIVER') && !currentUser.driverDetails;
+
+  if (currentUser && !currentUser.selfieUrl && !driverNeedsVehicleProfile) {
     return (
       <div className="home-wrapper">
         <div className="selfie-capture-overlay glass animate-fade-in">
@@ -1268,34 +1490,31 @@ export default function Home() {
         onMapClick={isSelectingLocation ? handleMapClick : null}
         mapStyle={mapStyle}
         onPointClick={handlePointClick}
+        mapLocked={showProfileModal || registeringCenter}
       />
 
       {/* FLOATING ACTION OVERLAY CONTROLLER */}
       <div className="floating-ui-container">
         
-        {/* Bottom controls panel holding the UI toggler and Map Style selector */}
+        {/* Bottom controls — minimal map chrome */}
         <div className="bottom-controls-bar glass animate-fade-in">
-          <button 
+          <button
             className="toggle-ui-btn"
             onClick={() => setShowPanels(!showPanels)}
-            title={showPanels ? "Ocultar Paneles de Datos" : "Mostrar Paneles de Datos"}
+            title={showPanels ? 'Ocultar paneles y ver solo el mapa' : 'Mostrar paneles de control'}
           >
-            {showPanels ? 'Ocultar UI ✕' : 'Mostrar Control UI 👁️'}
+            {showPanels ? 'Solo mapa ✕' : 'Mostrar paneles 👁️'}
           </button>
-          
-          <div className="map-style-selector">
-            <span className="style-label">Mapa:</span>
-            <select
-              value={mapStyle}
-              onChange={(e) => setMapStyle(e.target.value)}
-              className="map-style-select"
+          {currentUser && (
+            <button
+              type="button"
+              className="toggle-ui-btn profile-shortcut-btn"
+              onClick={() => setShowProfileModal(true)}
+              title="Configuración y perfil"
             >
-              <option value="light">Claro ☀️</option>
-              <option value="dark">Oscuro 🌙</option>
-              <option value="classic">Estándar 🗺️</option>
-              <option value="satellite">Satélite 🛰️</option>
-            </select>
-          </div>
+              ⚙️ Perfil
+            </button>
+          )}
         </div>
 
         {showPanels && (
@@ -1353,14 +1572,16 @@ export default function Home() {
                 </div>
 
                 {selectedPoint && !leftMinimized && (
-                  <div className="selected-point-details-card glass animate-fade-in">
-                    <div className="card-header">
-                      <span className="point-type-badge">
-                        {selectedPoint.type === 'center' ? '🏠 Centro de Acopio' : '🚨 Necesidad'}
-                      </span>
-                      <button onClick={() => setSelectedPoint(null)} className="close-point-btn" title="Cerrar detalles">✕</button>
-                    </div>
-
+                  <CollapsiblePanel
+                    className="selected-point-details-card glass animate-fade-in"
+                    title={selectedPoint.type === 'center' ? '🏠 Centro de Acopio' : '🚨 Necesidad'}
+                    headingLevel="h4"
+                    collapsed={isPanelCollapsed('selected-point')}
+                    onToggle={() => togglePanelCollapse('selected-point')}
+                    headerExtra={(
+                      <button onClick={() => setSelectedPoint(null)} className="close-point-btn" title="Cerrar detalles" type="button">✕</button>
+                    )}
+                  >
                     <div className="card-body">
                       {selectedPoint.type === 'center' ? (
                         <>
@@ -1375,11 +1596,16 @@ export default function Home() {
                           {currentUser && userRoles.includes('NGO') && (
                             <button
                               onClick={() => {
-                                // Pre-fill need creation form coordinates
-                                setNeedLat(selectedPoint.data.latitude);
-                                setNeedLng(selectedPoint.data.longitude);
-                                setNeedState(selectedPoint.data.address?.split(',')[0] || '');
-                                setActiveTab('need');
+                                setNeedPrefill({
+                                  latitude: parseFloat(selectedPoint.data.latitude),
+                                  longitude: parseFloat(selectedPoint.data.longitude),
+                                  state: selectedPoint.data.address?.split(',')[0] || '',
+                                  sector: selectedPoint.data.name,
+                                  collectionCenterId: selectedPoint.data.id,
+                                  collectionCenterName: selectedPoint.data.name,
+                                  description: `Solicitud de recursos en ${selectedPoint.data.name}`,
+                                });
+                                setActiveTab('ngo');
                               }}
                               className="point-action-btn"
                             >
@@ -1401,6 +1627,20 @@ export default function Home() {
                           </div>
                           <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
 
+                          {selectedPoint.data.items?.length > 0 && (
+                            <div className="point-items-list">
+                              <strong>Recursos solicitados:</strong>
+                              <ul>
+                                {selectedPoint.data.items.map((item) => (
+                                  <li key={item.id} className={isNeedItemMatched(item) ? 'item-matched' : 'item-pending'}>
+                                    {formatNeedItemLabel(item)}
+                                    {isNeedItemMatched(item) ? ' ✓' : ' (pendiente)'}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
                           {currentUser && userRoles.includes('ADMIN') && selectedPoint.data.status === 'PENDING' && (
                             <button
                               onClick={() => handleProposeDispatch(selectedPoint.data.id)}
@@ -1412,7 +1652,7 @@ export default function Home() {
                         </>
                       )}
                     </div>
-                  </div>
+                  </CollapsiblePanel>
                 )}
 
                 {!leftMinimized && (
@@ -1515,7 +1755,48 @@ export default function Home() {
                     {currentUser && userRoles.includes('DONOR') ? (
                       <div className="glass-card">
                         <div className="welcome-badge">Aportar Recursos</div>
-                        <ResourceCatalogForm token={authToken} onResourceCataloged={refreshResources} />
+                        <ResourceCatalogForm
+                          token={authToken}
+                          collectionCenters={collectionCentersList}
+                          onResourceCataloged={refreshResources}
+                        />
+
+                        <CollapsiblePanel
+                          className="status-panel glass-card margin-top donor-resources-panel"
+                          title="Recursos Catalogados"
+                          collapsed={isPanelCollapsed('donor-resources')}
+                          onToggle={() => togglePanelCollapse('donor-resources')}
+                          onRefresh={refreshResources}
+                        >
+                          <div className="resources-list-box">
+                            {resourcesList.map((res) => (
+                              <div
+                                key={res.id}
+                                className={`resource-row ${res.donorId === currentUser.id ? 'own-resource' : ''}`}
+                              >
+                                <div className="resource-meta">
+                                  <span className="res-row-name">
+                                    {res.name}
+                                    {res.donorId === currentUser.id && (
+                                      <span className="own-resource-badge">Tuyo</span>
+                                    )}
+                                  </span>
+                                  <span className="res-row-category">{res.category}</span>
+                                  {res.collectionCenter && (
+                                    <span className="res-row-location">@ {res.collectionCenter.name}</span>
+                                  )}
+                                  {res.donor && res.donorId !== currentUser.id && (
+                                    <span className="res-row-location">Donante: {res.donor.name}</span>
+                                  )}
+                                </div>
+                                <span className="res-row-qty">{res.stockQuantity} un.</span>
+                              </div>
+                            ))}
+                            {resourcesList.length === 0 && (
+                              <p className="empty-panel-msg">Aún no hay recursos en el inventario.</p>
+                            )}
+                          </div>
+                        </CollapsiblePanel>
                       </div>
                     ) : (
                       <div className="auth-required-card glass-card">
@@ -1533,7 +1814,12 @@ export default function Home() {
                     {currentUser && userRoles.includes('NGO') ? (
                       <div className="glass-card">
                         <div className="welcome-badge">Solicitar Insumos</div>
-                        <NeedSubmissionForm token={authToken} onNeedSubmitted={refreshNeeds} />
+                        <NeedSubmissionForm
+                          token={authToken}
+                          ngoId={currentUser?.id}
+                          prefill={needPrefill}
+                          onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
+                        />
                       </div>
                     ) : (
                       <div className="auth-required-card glass-card">
@@ -1584,11 +1870,45 @@ export default function Home() {
                                 </div>
 
                                 <div className="input-group">
-                                  <label htmlFor="drv-vehicle">Descripción del Vehículo *</label>
+                                  <label htmlFor="drv-category">Tipo de Vehículo *</label>
+                                  <select
+                                    id="drv-category"
+                                    value={driverVehicleCategory}
+                                    onChange={(e) => {
+                                      const next = e.target.value;
+                                      setDriverVehicleCategory(next);
+                                      const preset = VEHICLE_CATEGORIES.find((c) => c.value === next);
+                                      if (preset) setDriverSeatCount(String(preset.defaultSeats));
+                                    }}
+                                    required
+                                  >
+                                    <option value="">Seleccione categoría</option>
+                                    {VEHICLE_CATEGORIES.map((cat) => (
+                                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="input-group">
+                                  <label htmlFor="drv-seats">Número de Asientos *</label>
+                                  <input
+                                    id="drv-seats"
+                                    type="number"
+                                    min="1"
+                                    max="60"
+                                    placeholder="Ej. 5"
+                                    value={driverSeatCount}
+                                    onChange={(e) => setDriverSeatCount(e.target.value)}
+                                    required
+                                  />
+                                </div>
+
+                                <div className="input-group">
+                                  <label htmlFor="drv-vehicle">Marca / Modelo / Color *</label>
                                   <input
                                     id="drv-vehicle"
                                     type="text"
-                                    placeholder="Ej. Camión Hilux Blanco 4x4"
+                                    placeholder="Ej. Toyota Hilux Blanco"
                                     value={driverVehicle}
                                     onChange={(e) => setDriverVehicle(e.target.value)}
                                     required
@@ -1607,29 +1927,19 @@ export default function Home() {
                                   />
                                 </div>
 
-                                <div className="input-group">
-                                  <label htmlFor="drv-license-url">Enlace de la Licencia Digital (Opcional)</label>
-                                  <input
-                                    id="drv-license-url"
-                                    type="text"
-                                    placeholder="Ej. /uploads/licenses/lic-123.jpg"
-                                    value={driverLicenseUrl}
-                                    onChange={(e) => setDriverLicenseUrl(e.target.value)}
-                                  />
-                                </div>
-
                                 {driverProfileError && <span className="error-message">{driverProfileError}</span>}
                                 {driverProfileMessage && <span className="success-message">{driverProfileMessage}</span>}
 
                                 <button type="submit" className="confirm-btn">Enviar Perfil</button>
                               </form>
                             </div>
-                          ) : currentUser.driverDetails.status !== 'VERIFIED' ? (
-                            <div className="alert alert-warning">
-                              Su documentación está en revisión por un administrador. No puede recibir propuestas hasta ser verificado.
-                            </div>
                           ) : (
                             <>
+                              <div className="driver-vehicle-summary glass-card">
+                                <h4>🚗 Mi Vehículo</h4>
+                                <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
+                              </div>
+
                               <div className="availability-toggle-section">
                                 <p>
                                   <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
@@ -1666,71 +1976,48 @@ export default function Home() {
                                 )}
                               </div>
 
-                              {/* Driver Alert Radius & GPS Sharing Settings */}
-                              <div className="driver-settings-card glass-card">
-                                <h4>⚙️ Ajustes del Conductor</h4>
-                                
-                                <div className="setting-row">
-                                  <label>Rastreo y Compartición de Ubicación (GPS):</label>
-                                  <button
-                                    onClick={toggleGpsSharing}
-                                    type="button"
-                                    className={`toggle-btn ${driverGpsSharing ? 'online' : 'offline'}`}
-                                  >
-                                    {driverGpsSharing ? '🟢 Transmitiendo GPS' : '🔴 GPS Detenido'}
-                                  </button>
-                                </div>
-
-                                <div className="setting-row" style={{ marginTop: '14px' }}>
-                                  <label>Radio de Cobertura para Alertas: <strong>{driverRadius} km</strong></label>
-                                  <input
-                                    type="range"
-                                    min="1"
-                                    max="50"
-                                    value={driverRadius}
-                                    onChange={(e) => setDriverRadius(parseInt(e.target.value))}
-                                    className="radius-range-slider"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Needs in Range Alerts list */}
-                              <div className="nearby-needs-card glass-card">
-                                <h4>🔔 Alertas Cercanas en tu Zona ({driverRadius} km)</h4>
+                              <CollapsiblePanel
+                                className="nearby-needs-card glass-card"
+                                title={`🔔 Alertas Cercanas (${driverRadius} km)`}
+                                headingLevel="h4"
+                                collapsed={isPanelCollapsed('driver-nearby-needs')}
+                                onToggle={() => togglePanelCollapse('driver-nearby-needs')}
+                              >
+                                <p className="nearby-hint">Priorizadas por proximidad al punto de origen (donde están las personas).</p>
                                 <div className="nearby-needs-list">
-                                  {needsQueue
-                                    .filter(need => need.status === 'PENDING')
-                                    .filter(need => {
-                                      if (!need.latitude || !need.longitude) return false;
-                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
-                                      return dist <= driverRadius;
-                                    })
-                                    .map(need => {
-                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
-                                      return (
-                                        <div key={need.id} className="nearby-need-row">
-                                          <div className="need-meta">
-                                            <span className="need-location">{need.state} - {need.sector}</span>
-                                            <span className="need-distance">{dist.toFixed(1)} km</span>
-                                          </div>
-                                          <p className="need-desc-text">{need.description}</p>
-                                          <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                                            Prioridad: {need.urgencyScore}
-                                          </span>
+                                  {nearbyNeeds.map((need) => (
+                                    <div key={need.id} className="nearby-need-row">
+                                      <div className="need-meta">
+                                        <span className="need-location">
+                                          {need.originLabel || `${need.state} - ${need.sector}`}
+                                        </span>
+                                        <span className="need-distance">{need.distanceKm?.toFixed(1)} km</span>
+                                      </div>
+                                      <p className="need-desc-text">{need.description}</p>
+                                      {need.items?.length > 0 && (
+                                        <div className="matched-resources-tags">
+                                          <span className="items-label">Solicitado:</span>
+                                          {need.items.map((item) => (
+                                            <span
+                                              key={item.id}
+                                              className={`match-tag ${isNeedItemMatched(item) ? 'matched' : 'unmatched'}`}
+                                            >
+                                              {formatNeedItemLabel(item)}
+                                              {isNeedItemMatched(item) ? ' ✓' : ' ⏳'}
+                                            </span>
+                                          ))}
                                         </div>
-                                      );
-                                    })}
-                                  {needsQueue
-                                    .filter(need => need.status === 'PENDING')
-                                    .filter(need => {
-                                      if (!need.latitude || !need.longitude) return false;
-                                      const dist = getDistanceKm(driverLat, driverLng, parseFloat(need.latitude), parseFloat(need.longitude));
-                                      return dist <= driverRadius;
-                                    }).length === 0 && (
-                                      <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
-                                    )}
+                                      )}
+                                      <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                                        Prioridad: {need.urgencyScore}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {nearbyNeeds.length === 0 && (
+                                    <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
+                                  )}
                                 </div>
-                              </div>
+                              </CollapsiblePanel>
                             </>
                           )}
                         </div>
@@ -1743,6 +2030,27 @@ export default function Home() {
                               <span className="countdown-timer">{proposalCountdown}s</span>
                             </div>
                             <p className="proposal-desc">{activeProposal.description}</p>
+                            {activeProposal.origin && (
+                              <div className="proposal-route">
+                                <p><strong>📍 Origen (recoger):</strong> {activeProposal.origin.label}</p>
+                                {activeProposal.destination && (
+                                  <p><strong>🏁 Destino (entregar):</strong> {activeProposal.destination.label}</p>
+                                )}
+                              </div>
+                            )}
+                            {activeProposal.matchedItems?.length > 0 && (
+                              <div className="proposal-matches">
+                                <strong>Recursos emparejados:</strong>
+                                <ul>
+                                  {activeProposal.matchedItems.map((item, idx) => (
+                                    <li key={idx}>
+                                      {item.quantity}x {item.requested} → {item.offer}
+                                      {item.pickupLabel && ` @ ${item.pickupLabel}`}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                             <div className="proposal-actions">
                               <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
                               <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
@@ -1756,17 +2064,32 @@ export default function Home() {
                             <h4>📦 Entrega en Progreso</h4>
                             <div className="task-details">
                               <p>ID: <code>{activeTask.id}</code></p>
-                              <p>Ubicación GPS: {driverLat.toFixed(4)}, {driverLng.toFixed(4)}</p>
-                              {activeTask.need && activeTask.need.latitude && activeTask.need.longitude && (
+                              <p>Ubicación GPS: {driverLat != null ? driverLat.toFixed(4) : '—'}, {driverLng != null ? driverLng.toFixed(4) : '—'}</p>
+                              {activeTask.pickupLatitude && activeTask.pickupLongitude && (
+                                <p><strong>Origen:</strong> {activeTask.pickupLabel || 'Punto de recogida'}</p>
+                              )}
+                              {activeTask.need && (
                                 <div className="maps-navigation-box">
-                                  <a 
-                                    href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="google-maps-btn"
-                                  >
-                                    🗺️ Abrir en Google Maps para Navegar
-                                  </a>
+                                  {driverLat != null && driverLng != null && activeTask.pickupLatitude && activeTask.need.latitude && (
+                                    <a
+                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="google-maps-btn"
+                                    >
+                                      🗺️ Ruta: Recoger en Origen → Entregar
+                                    </a>
+                                  )}
+                                  {driverLat != null && driverLng != null && !activeTask.pickupLatitude && activeTask.need.latitude && (
+                                    <a
+                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="google-maps-btn"
+                                    >
+                                      🗺️ Abrir en Google Maps para Navegar
+                                    </a>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1813,8 +2136,13 @@ export default function Home() {
                   <div className="tab-pane-content">
                     {currentUser && userRoles.includes('ADMIN') ? (
                       <div className="admin-panel">
-                        <div className="admin-drivers-section glass-card">
-                          <h4>Vetting de Conductores</h4>
+                        <CollapsiblePanel
+                          className="admin-drivers-section glass-card"
+                          title="Vetting de Conductores"
+                          headingLevel="h4"
+                          collapsed={isPanelCollapsed('admin-pending-drivers')}
+                          onToggle={() => togglePanelCollapse('admin-pending-drivers')}
+                        >
                           {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
                           <div className="drivers-approval-list">
                              {pendingDrivers.map((driver) => (
@@ -1822,28 +2150,72 @@ export default function Home() {
                                 <div className="driver-info">
                                   <span className="driver-name">{driver.name}</span>
                                   <span className="driver-sub">Cédula: {driver.driverDetails.cedula}</span>
+                                  <span className="driver-sub">
+                                    {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
+                                  </span>
+                                  <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
                                 </div>
                                 <button onClick={() => handleApproveDriver(driver.id)} className="approve-btn">Aprobar</button>
                               </div>
                             ))}
                             {pendingDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores pendientes.</p>}
                           </div>
-                        </div>
+                        </CollapsiblePanel>
 
-                        <div className="admin-matching-section glass-card margin-top">
-                          <h4>Emparejamiento Manual</h4>
+                        <CollapsiblePanel
+                          className="admin-fleet-section glass-card margin-top"
+                          title="Flota Verificada"
+                          headingLevel="h4"
+                          collapsed={isPanelCollapsed('admin-fleet')}
+                          onToggle={() => togglePanelCollapse('admin-fleet')}
+                        >
+                          <p className="fleet-hint">Conductores aprobados y tipos de vehículo disponibles en la red.</p>
+                          <div className="fleet-list">
+                            {fleetDrivers.map((driver) => (
+                              <div key={driver.id} className="fleet-row">
+                                <div className="fleet-driver-info">
+                                  <span className="driver-name">{driver.name}</span>
+                                  <span className="driver-sub">
+                                    {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
+                                  </span>
+                                  <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
+                                </div>
+                                <span className={`fleet-status-badge ${driver.available ? 'online' : 'offline'}`}>
+                                  {driver.available ? 'Disponible' : 'No disponible'}
+                                </span>
+                              </div>
+                            ))}
+                            {fleetDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores verificados en la flota.</p>}
+                          </div>
+                        </CollapsiblePanel>
+
+                        <CollapsiblePanel
+                          className="admin-matching-section glass-card margin-top"
+                          title="Emparejamiento Manual"
+                          headingLevel="h4"
+                          collapsed={isPanelCollapsed('admin-matching')}
+                          onToggle={() => togglePanelCollapse('admin-matching')}
+                        >
                           <div className="matching-controls-list">
                             {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
                               <div key={need.id} className="matching-row">
                                 <div className="matching-info">
                                   <span className="need-title">{need.description}</span>
+                                  <span className="need-sub">
+                                    Origen: {need.originLabel || `${need.state} - ${need.sector}`}
+                                  </span>
+                                  {need.items?.length > 0 && (
+                                    <span className="need-sub">
+                                      Solicitado: {need.items.map((item) => formatNeedItemLabel(item)).join(' · ')}
+                                    </span>
+                                  )}
                                 </div>
                                 <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
                               </div>
                             ))}
                             {needsQueue.filter(n => n.status === 'PENDING').length === 0 && <p className="no-matching-msg">No hay solicitudes pendientes.</p>}
                           </div>
-                        </div>
+                        </CollapsiblePanel>
                       </div>
                     ) : (
                       <div className="auth-required-card glass-card">
@@ -1866,20 +2238,17 @@ export default function Home() {
                             {myTeam.team.description && (
                               <p className="team-description">{myTeam.team.description}</p>
                             )}
-                            
-                            <div className="team-sharing-control">
-                              <label className="checkbox-label location-sharing-switch">
-                                <input
-                                  type="checkbox"
-                                  checked={teamSharing}
-                                  onChange={handleToggleSharing}
-                                />
-                                📡 Compartir mi ubicación en tiempo real con el equipo
-                              </label>
-                            </div>
+                            <p className="profile-setting-hint team-sharing-hint">
+                              Compartir ubicación con el equipo: configuración en ⚙️ Perfil.
+                            </p>
 
-                            <div className="team-members-section">
-                              <h4>Miembros del Equipo</h4>
+                            <CollapsiblePanel
+                              className="nested"
+                              title="Miembros del Equipo"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('team-members')}
+                              onToggle={() => togglePanelCollapse('team-members')}
+                            >
                               <div className="team-members-list">
                                 {myTeam.team.members.map((member) => (
                                   <div key={member.id} className="team-member-row">
@@ -1905,7 +2274,7 @@ export default function Home() {
                                   </div>
                                 ))}
                               </div>
-                            </div>
+                            </CollapsiblePanel>
 
                             <button onClick={handleLeaveTeam} className="leave-team-btn">
                               Salir del Equipo
@@ -1941,8 +2310,13 @@ export default function Home() {
                               </form>
                             </div>
 
-                            <div className="glass-card margin-top">
-                              <h4>Unirse a un Equipo Existente</h4>
+                            <CollapsiblePanel
+                              className="margin-top"
+                              title="Unirse a un Equipo Existente"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('available-teams')}
+                              onToggle={() => togglePanelCollapse('available-teams')}
+                            >
                               <div className="available-teams-list">
                                 {availableTeams.map((team) => (
                                   <div key={team.id} className="available-team-row">
@@ -1965,7 +2339,7 @@ export default function Home() {
                                   <p className="no-teams-msg">No hay equipos disponibles.</p>
                                 )}
                               </div>
-                            </div>
+                            </CollapsiblePanel>
                           </div>
                         )}
                       </div>
@@ -2000,11 +2374,13 @@ export default function Home() {
                   <>
                 
                 {/* NEEDS PRIORITY QUEUE */}
-                <div className="status-panel glass-card">
-                  <div className="panel-header">
-                    <h3>Cola de Urgencias</h3>
-                    <button onClick={refreshNeeds} className="refresh-btn">↻</button>
-                  </div>
+                <CollapsiblePanel
+                  className="status-panel glass-card"
+                  title="Cola de Urgencias"
+                  collapsed={isPanelCollapsed('urgency-queue')}
+                  onToggle={() => togglePanelCollapse('urgency-queue')}
+                  onRefresh={refreshNeeds}
+                >
                   <div className="needs-list">
                     {needsQueue.map((need) => {
                       const isHigh = need.urgencyScore >= 80;
@@ -2017,6 +2393,18 @@ export default function Home() {
                             </span>
                           </div>
                           <p className="need-card-desc">{need.description}</p>
+                          {need.items?.length > 0 && (
+                            <div className="need-card-items">
+                              {need.items.map((item) => (
+                                <span
+                                  key={item.id}
+                                  className={`need-item-chip ${isNeedItemMatched(item) ? 'matched' : 'pending'}`}
+                                >
+                                  {formatNeedItemLabel(item)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <div className="need-card-footer">
                             <span className={`status-badge-need ${need.status}`}>
                               {need.status === 'PENDING' ? 'Pendiente' : 
@@ -2028,14 +2416,15 @@ export default function Home() {
                     })}
                     {needsQueue.length === 0 && <p className="empty-panel-msg">No hay solicitudes.</p>}
                   </div>
-                </div>
+                </CollapsiblePanel>
 
-                {/* ACTIVE INVENTORY CATALOG */}
-                <div className="status-panel glass-card margin-top">
-                  <div className="panel-header">
-                    <h3>Inventario Disponible</h3>
-                    <button onClick={refreshResources} className="refresh-btn">↻</button>
-                  </div>
+                <CollapsiblePanel
+                  className="status-panel glass-card margin-top"
+                  title="Inventario Disponible"
+                  collapsed={isPanelCollapsed('available-inventory')}
+                  onToggle={() => togglePanelCollapse('available-inventory')}
+                  onRefresh={refreshResources}
+                >
                   <div className="resources-list-box">
                     {resourcesList.map((res) => (
                       <div key={res.id} className="resource-row">
@@ -2048,157 +2437,255 @@ export default function Home() {
                     ))}
                     {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
                   </div>
-                </div>
+                </CollapsiblePanel>
                   </>
                 )}
               </div>
 
             </div>
 
-            {/* MAP CLICK MODAL OVERLAY FOR REGISTERING A CENTER */}
-            {registeringCenter && mapClickLocation && (
-              <div className="collection-center-modal glass-card animate-fade-in">
-                <h3>Registrar Centro de Acopio</h3>
-                <p className="modal-coords">Ubicación elegida: {mapClickLocation.lat.toFixed(5)}, {mapClickLocation.lng.toFixed(5)}</p>
-                
-                <form onSubmit={handleRegisterCenter}>
-                  <div className="input-group">
-                    <label htmlFor="center-name">Nombre del Centro *</label>
-                    <input
-                      id="center-name"
-                      type="text"
-                      placeholder="Ej. Comedor Comunitario El Valle"
-                      value={centerName}
-                      onChange={(e) => setCenterName(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label htmlFor="center-desc">Descripción de la Ayuda *</label>
-                    <textarea
-                      id="center-desc"
-                      placeholder="Ej. Ofrecemos comida caliente y camas para emergencias."
-                      value={centerDesc}
-                      onChange={(e) => setCenterDesc(e.target.value)}
-                      required
-                      rows={3}
-                      className="textarea-input"
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label>Servicios Ofrecidos *</label>
-                    <div className="checkbox-grid">
-                      <label className="checkbox-label">
-                        <input type="checkbox" checked={centerServices.includes('Comida')} onChange={() => handleServiceCheckbox('Comida')} />
-                        Alimentos
-                      </label>
-                      <label className="checkbox-label">
-                        <input type="checkbox" checked={centerServices.includes('Medicina')} onChange={() => handleServiceCheckbox('Medicina')} />
-                        Medicina
-                      </label>
-                      <label className="checkbox-label">
-                        <input type="checkbox" checked={centerServices.includes('Camas')} onChange={() => handleServiceCheckbox('Camas')} />
-                        Dormitorio
-                      </label>
-                      <label className="checkbox-label">
-                        <input type="checkbox" checked={centerServices.includes('Refugio')} onChange={() => handleServiceCheckbox('Refugio')} />
-                        Refugio
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="input-group">
-                    <label htmlFor="center-address">Dirección Física</label>
-                    <input
-                      id="center-address"
-                      type="text"
-                      placeholder="Ej. Frente a Plaza Bolívar"
-                      value={centerAddress}
-                      onChange={(e) => setCenterAddress(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="modal-actions">
-                    <button type="submit" className="confirm-btn">Guardar Centro</button>
-                    <button type="button" className="reject-btn" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>Cancelar</button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* PROFILE MODAL */}
-            {showProfileModal && currentUser && (
-              <div className="modal-backdrop" onClick={() => setShowProfileModal(false)}>
-                <div className="profile-modal glass-card" onClick={e => e.stopPropagation()}>
-                  <div className="modal-header">
-                    <h3>⚙️ Mi Perfil</h3>
-                    <button className="close-modal-btn" onClick={() => setShowProfileModal(false)}>✕</button>
-                  </div>
-
-                  <div className="profile-selfie-section">
-                    {currentUser.selfieUrl ? (
-                      <img src={currentUser.selfieUrl} className="profile-modal-avatar" alt="Mi selfie" />
-                    ) : (
-                      <div className="profile-modal-avatar-placeholder">👤</div>
-                    )}
-                    <div className="profile-modal-meta">
-                      <p className="profile-email">{currentUser.email}</p>
-                      <p className="profile-roles">{currentUser.roles.split(',').join(' · ')}</p>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleSaveProfile} className="profile-edit-form">
-                    <div className="input-group">
-                      <label htmlFor="prof-name">Nombre Completo</label>
-                      <input
-                        id="prof-name"
-                        type="text"
-                        value={profileName}
-                        onChange={e => setProfileName(e.target.value)}
-                        placeholder="Tu nombre"
-                        required
-                      />
-                    </div>
-
-                    {profileMessage && (
-                      <div className={`profile-msg ${profileMessage.includes('Error') ? 'error' : 'success'}`}>
-                        {profileMessage}
-                      </div>
-                    )}
-
-                    <button type="submit" disabled={profileSaving} className="confirm-btn">
-                      {profileSaving ? 'Guardando...' : 'Guardar Cambios'}
-                    </button>
-                  </form>
-
-                  <div className="profile-modal-section">
-                    <h4>👥 Mi Equipo</h4>
-                    {myTeam?.inTeam ? (
-                      <div className="profile-team-info">
-                        <span className="profile-team-name">{myTeam.team.name}</span>
-                        <span className="profile-team-members">{myTeam.team.members.length} miembro(s)</span>
-                        <button onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
-                          Ver Equipo →
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="profile-no-team">
-                        <p>No perteneces a ningún equipo todavía.</p>
-                        <button onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
-                          Crear o Unirme a un Equipo →
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
           </div>
         )}
       </div>
+
+      {/* MAP CLICK MODAL OVERLAY FOR REGISTERING A CENTER */}
+      {registeringCenter && mapClickLocation && (
+        <div className="modal-backdrop collection-center-backdrop" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>
+          <div className="collection-center-modal glass-card animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h3>Registrar Centro de Acopio</h3>
+            <p className="modal-coords">Ubicación elegida: {mapClickLocation.lat.toFixed(5)}, {mapClickLocation.lng.toFixed(5)}</p>
+            
+            <form onSubmit={handleRegisterCenter}>
+              <div className="input-group">
+                <label htmlFor="center-name">Nombre del Centro *</label>
+                <input
+                  id="center-name"
+                  type="text"
+                  placeholder="Ej. Comedor Comunitario El Valle"
+                  value={centerName}
+                  onChange={(e) => setCenterName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="center-desc">Descripción de la Ayuda *</label>
+                <textarea
+                  id="center-desc"
+                  placeholder="Ej. Ofrecemos comida caliente y camas para emergencias."
+                  value={centerDesc}
+                  onChange={(e) => setCenterDesc(e.target.value)}
+                  required
+                  rows={3}
+                  className="textarea-input"
+                />
+              </div>
+
+              <div className="input-group">
+                <label>Servicios Ofrecidos *</label>
+                <div className="checkbox-grid">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={centerServices.includes('Comida')} onChange={() => handleServiceCheckbox('Comida')} />
+                    Alimentos
+                  </label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={centerServices.includes('Medicina')} onChange={() => handleServiceCheckbox('Medicina')} />
+                    Medicina
+                  </label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={centerServices.includes('Camas')} onChange={() => handleServiceCheckbox('Camas')} />
+                    Dormitorio
+                  </label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={centerServices.includes('Refugio')} onChange={() => handleServiceCheckbox('Refugio')} />
+                    Refugio
+                  </label>
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="center-address">Dirección Física</label>
+                <input
+                  id="center-address"
+                  type="text"
+                  placeholder="Ej. Frente a Plaza Bolívar"
+                  value={centerAddress}
+                  onChange={(e) => setCenterAddress(e.target.value)}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button type="submit" className="confirm-btn">Guardar Centro</button>
+                <button type="button" className="reject-btn" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PROFILE MODAL */}
+      {showProfileModal && currentUser && (
+        <div className="modal-backdrop" onClick={() => setShowProfileModal(false)}>
+          <div className="profile-modal glass-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>⚙️ Mi Perfil</h3>
+              <button type="button" className="close-modal-btn" onClick={() => setShowProfileModal(false)}>✕</button>
+            </div>
+
+            <div className="profile-selfie-section">
+              {currentUser.selfieUrl ? (
+                <img src={currentUser.selfieUrl} className="profile-modal-avatar" alt="Mi selfie" />
+              ) : (
+                <div className="profile-modal-avatar-placeholder">👤</div>
+              )}
+              <div className="profile-modal-meta">
+                <p className="profile-email">{currentUser.email}</p>
+                <p className="profile-roles">{currentUser.roles.split(',').join(' · ')}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="profile-edit-form">
+              <div className="input-group">
+                <label htmlFor="prof-name">Nombre Completo</label>
+                <input
+                  id="prof-name"
+                  type="text"
+                  value={profileName}
+                  onChange={e => setProfileName(e.target.value)}
+                  placeholder="Tu nombre"
+                  required
+                />
+              </div>
+
+              {profileMessage && (
+                <div className={`profile-msg ${profileMessage.includes('Error') ? 'error' : 'success'}`}>
+                  {profileMessage}
+                </div>
+              )}
+
+              <button type="submit" disabled={profileSaving} className="confirm-btn">
+                {profileSaving ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </form>
+
+            <div className="profile-modal-section">
+              <h4>🗺️ Pantalla y mapa</h4>
+              <div className="profile-setting-row">
+                <label htmlFor="prof-map-style">Estilo del mapa</label>
+                <select
+                  id="prof-map-style"
+                  className="profile-select"
+                  value={mapStyle}
+                  onChange={(e) => setMapStyle(e.target.value)}
+                >
+                  <option value="light">Claro ☀️</option>
+                  <option value="dark">Oscuro 🌙</option>
+                  <option value="classic">Estándar 🗺️</option>
+                  <option value="satellite">Satélite 🛰️</option>
+                </select>
+              </div>
+              <label className="profile-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={showPanels}
+                  onChange={(e) => setShowPanels(e.target.checked)}
+                />
+                Mostrar paneles de control sobre el mapa
+              </label>
+              <label className="profile-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={!leftMinimized}
+                  onChange={(e) => setLeftMinimized(!e.target.checked)}
+                />
+                Panel izquierdo expandido
+              </label>
+              <label className="profile-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={!rightMinimized}
+                  onChange={(e) => setRightMinimized(!e.target.checked)}
+                />
+                Panel derecho expandido
+              </label>
+              <div className="profile-inline-actions">
+                <button type="button" className="profile-secondary-btn" onClick={handleCollapseAllLists}>
+                  Colapsar listas
+                </button>
+                <button type="button" className="profile-secondary-btn" onClick={handleExpandAllLists}>
+                  Expandir listas
+                </button>
+              </div>
+              <p className="profile-setting-hint">
+                Oculte los paneles con «Solo mapa» abajo a la izquierda para una vista limpia. La configuración siempre está aquí.
+              </p>
+            </div>
+
+            {userRoles.includes('DRIVER') && currentUser.driverDetails && (
+              <div className="profile-modal-section">
+                <h4>🚗 Conductor</h4>
+                <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
+                <div className="profile-setting-row">
+                  <label>GPS en tiempo real</label>
+                  <button
+                    type="button"
+                    onClick={toggleGpsSharing}
+                    className={`toggle-btn ${driverGpsSharing ? 'online' : 'offline'}`}
+                  >
+                    {driverGpsSharing ? '🟢 Activo' : '🔴 Detenido'}
+                  </button>
+                </div>
+                <div className="profile-setting-row">
+                  <label>Radio de alertas: <strong>{driverRadius} km</strong></label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    value={driverRadius}
+                    onChange={(e) => handleDriverRadiusChange(parseInt(e.target.value, 10))}
+                    className="radius-range-slider"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="profile-team-link-btn"
+                  onClick={() => { setShowProfileModal(false); setActiveTab('driver'); }}
+                >
+                  Ir a panel de conductor →
+                </button>
+              </div>
+            )}
+
+            <div className="profile-modal-section">
+              <h4>👥 Mi Equipo</h4>
+              {myTeam?.inTeam ? (
+                <div className="profile-team-info">
+                  <span className="profile-team-name">{myTeam.team.name}</span>
+                  <span className="profile-team-members">{myTeam.team.members.length} miembro(s)</span>
+                  <label className="profile-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={teamSharing}
+                      onChange={handleToggleSharing}
+                    />
+                    Compartir mi ubicación con el equipo
+                  </label>
+                  <button type="button" onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
+                    Ver Equipo →
+                  </button>
+                </div>
+              ) : (
+                <div className="profile-no-team">
+                  <p>No perteneces a ningún equipo todavía.</p>
+                  <button type="button" onClick={() => { setShowProfileModal(false); setActiveTab('equipos'); }} className="profile-team-link-btn">
+                    Crear o Unirme a un Equipo →
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .home-wrapper {
@@ -2930,16 +3417,12 @@ export default function Home() {
 
         /* Collection Center register Modal on top of map */
         .collection-center-modal {
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          z-index: 1000;
-          pointer-events: auto;
+          position: relative;
           width: 460px;
           max-width: 90%;
           max-height: 85vh;
           overflow-y: auto;
+          pointer-events: auto;
           background: rgba(15, 23, 42, 0.95);
           backdrop-filter: blur(16px);
           border: 1px solid rgba(249, 115, 22, 0.3);
@@ -2950,8 +3433,8 @@ export default function Home() {
         }
         
         @keyframes scaleUp {
-          from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
-          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          from { opacity: 0; transform: scale(0.96); }
+          to { opacity: 1; transform: scale(1); }
         }
 
         .collection-center-modal h3 {
@@ -3158,6 +3641,81 @@ export default function Home() {
           flex-direction: column;
           gap: 6px;
         }
+        .nearby-hint, .setting-hint {
+          font-size: 11px;
+          color: var(--text-secondary);
+          margin: 4px 0 8px;
+        }
+        .matched-resources-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        .match-tag {
+          font-size: 10px;
+          background: var(--success-glow);
+          color: var(--success-color);
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .match-tag.unmatched {
+          background: rgba(148, 163, 184, 0.15);
+          color: #94a3b8;
+        }
+        .items-label {
+          display: block;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: #94a3b8;
+          margin-bottom: 4px;
+        }
+        .need-card-items {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-bottom: 6px;
+        }
+        .need-item-chip {
+          font-size: 10px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: rgba(96, 165, 250, 0.15);
+          color: #93c5fd;
+        }
+        .need-item-chip.matched {
+          background: var(--success-glow);
+          color: var(--success-color);
+        }
+        .need-item-chip.pending {
+          background: rgba(148, 163, 184, 0.15);
+          color: #94a3b8;
+        }
+        .point-items-list {
+          margin: 10px 0;
+          font-size: 12px;
+        }
+        .point-items-list ul {
+          margin: 6px 0 0;
+          padding-left: 18px;
+        }
+        .point-items-list .item-matched {
+          color: #4ade80;
+        }
+        .point-items-list .item-pending {
+          color: #94a3b8;
+        }
+        .proposal-route, .proposal-matches {
+          font-size: 13px;
+          margin: 8px 0;
+          padding: 8px;
+          background: rgba(0,0,0,0.2);
+          border-radius: 6px;
+        }
+        .proposal-matches ul {
+          margin: 4px 0 0 16px;
+          padding: 0;
+        }
         .need-meta {
           display: flex;
           justify-content: space-between;
@@ -3276,6 +3834,67 @@ export default function Home() {
         .driver-name, .need-title { font-weight: 600; font-size: 13px; color: #f8fafc; }
         .driver-sub { font-size: 11px; color: #94a3b8; }
         .approve-btn, .match-btn { background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
+
+        .fleet-hint {
+          font-size: 12px;
+          color: #94a3b8;
+          margin: 0 0 12px 0;
+        }
+        .fleet-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .fleet-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 10px 14px;
+          border-radius: 10px;
+        }
+        .fleet-driver-info {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+        .fleet-status-badge {
+          flex-shrink: 0;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 4px 8px;
+          border-radius: 999px;
+          text-transform: uppercase;
+        }
+        .fleet-status-badge.online {
+          background: rgba(16, 185, 129, 0.15);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .fleet-status-badge.offline {
+          background: rgba(148, 163, 184, 0.15);
+          color: #94a3b8;
+          border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .driver-vehicle-summary {
+          padding: 14px 16px;
+          margin-bottom: 14px;
+          border-radius: 12px;
+        }
+        .driver-vehicle-summary h4 {
+          margin: 0 0 8px 0;
+          font-size: 13px;
+          color: #f8fafc;
+        }
+        .vehicle-summary-line {
+          font-size: 12px;
+          color: #cbd5e1;
+          margin: 6px 0 0 0;
+          line-height: 1.4;
+        }
         
         /* Queues & Resource catalogs right panel cards */
         .status-panel {
@@ -3326,6 +3945,35 @@ export default function Home() {
         .need-card-desc { font-size: 12px; color: #cbd5e1; line-height: 1.4; }
         .need-card-footer { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 6px; font-size: 10px; }
         
+        .donor-resources-panel {
+          margin-top: 20px;
+        }
+        .donor-resources-panel .panel-header h3 {
+          font-size: 16px;
+          margin: 0;
+        }
+        .own-resource {
+          border-color: rgba(249, 115, 22, 0.35);
+          background: rgba(249, 115, 22, 0.08);
+        }
+        .own-resource-badge {
+          display: inline-block;
+          margin-left: 8px;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: #f97316;
+          color: #fff;
+          vertical-align: middle;
+        }
+        .res-row-location {
+          display: block;
+          font-size: 11px;
+          color: var(--text-secondary);
+          margin-top: 2px;
+        }
         .resource-row {
           display: flex;
           justify-content: space-between;
@@ -3415,16 +4063,24 @@ export default function Home() {
           position: fixed;
           inset: 0;
           background: rgba(0, 0, 0, 0.6);
-          z-index: 9999;
+          z-index: 10000;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 20px;
+          pointer-events: auto;
+          touch-action: none;
           animation: fadeIn 0.15s ease-out;
         }
+        .collection-center-backdrop {
+          background: rgba(0, 0, 0, 0.55);
+        }
         .profile-modal {
+          pointer-events: auto;
           width: 100%;
-          max-width: 420px;
+          max-width: 440px;
+          max-height: min(90vh, 720px);
+          overflow-y: auto;
           border-radius: 20px;
           padding: 24px;
           background: rgba(15, 23, 42, 0.97);
@@ -3552,6 +4208,67 @@ export default function Home() {
           text-align: left;
         }
         .profile-team-link-btn:hover { background: rgba(59,130,246,0.2); }
+
+        .profile-setting-row {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .profile-setting-row label {
+          font-size: 12px;
+          color: #94a3b8;
+          font-weight: 600;
+        }
+        .profile-select {
+          width: 100%;
+          padding: 10px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(0, 0, 0, 0.25);
+          color: #f8fafc;
+          font-size: 13px;
+        }
+        .profile-checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: #cbd5e1;
+          margin-bottom: 8px;
+          cursor: pointer;
+        }
+        .profile-inline-actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+        .profile-secondary-btn {
+          flex: 1;
+          padding: 8px 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.04);
+          color: #cbd5e1;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .profile-secondary-btn:hover {
+          background: rgba(255, 255, 255, 0.08);
+          color: #f8fafc;
+        }
+        .profile-setting-hint {
+          font-size: 11px;
+          color: #64748b;
+          margin: 10px 0 0;
+          line-height: 1.4;
+        }
+        .profile-shortcut-btn {
+          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          padding-left: 12px;
+          margin-left: 4px;
+        }
         .tab-dot {
           color: #f59e0b;
           font-size: 8px;

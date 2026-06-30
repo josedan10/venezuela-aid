@@ -1,42 +1,85 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import ItemAutocomplete from './ItemAutocomplete';
 
-const CATEGORIES = [
-  { value: 'MEDICINES', label: 'Medicamentos' },
-  { value: 'FOOD', label: 'Alimentos' },
-  { value: 'BLOOD_DONORS', label: 'Donantes de Sangre' },
-  { value: 'HELPERS', label: 'Ayudantes/Voluntarios' },
-  { value: 'MACHINES', label: 'Maquinaria' },
-  { value: 'RESCUE_TEAMS', label: 'Equipos de Rescate' }
-];
-
-export default function ResourceCatalogForm({ token, onResourceCataloged }) {
-  const [name, setName] = useState('');
+export default function ResourceCatalogForm({ token, onResourceCataloged, collectionCenters = [] }) {
+  const [selectedItem, setSelectedItem] = useState(null);
   const [category, setCategory] = useState('');
   const [stockQuantity, setStockQuantity] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
-  
+  const [collectionCenterId, setCollectionCenterId] = useState('');
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
+  const [useGps, setUseGps] = useState(true);
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverMessage, setServerMessage] = useState('');
   const [serverError, setServerError] = useState('');
 
+  useEffect(() => {
+    if (!useGps || collectionCenterId) return;
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLatitude(pos.coords.latitude);
+          setLongitude(pos.coords.longitude);
+        },
+        () => {
+          setLatitude(null);
+          setLongitude(null);
+        },
+        { enableHighAccuracy: true, timeout: 5000 },
+      );
+    }
+  }, [useGps, collectionCenterId]);
+
+  const handleCenterChange = (centerId) => {
+    setCollectionCenterId(centerId);
+    if (centerId) {
+      const center = collectionCenters.find((c) => c.id === centerId);
+      if (center) {
+        setLatitude(center.latitude);
+        setLongitude(center.longitude);
+        setUseGps(false);
+      }
+    } else {
+      setLatitude(null);
+      setLongitude(null);
+      setUseGps(true);
+    }
+  };
+
+  const handleCategoryChange = (nextCategory) => {
+    setCategory(nextCategory);
+    if (nextCategory !== 'MEDICINES' && nextCategory !== 'FOOD') {
+      setExpirationDate('');
+    }
+  };
+
+  const handleGpsToggle = (checked) => {
+    setUseGps(checked);
+    if (!checked) {
+      setLatitude(null);
+      setLongitude(null);
+    }
+  };
+
   const validate = () => {
     const tempErrors = {};
-    if (!name.trim()) tempErrors.name = 'El nombre del recurso es obligatorio.';
-    if (!category) tempErrors.category = 'La categoría es obligatoria.';
-    
-    const qty = parseInt(stockQuantity, 10);
-    if (isNaN(qty) || qty < 1) {
+    if (!selectedItem?.id) tempErrors.item = 'Seleccione o cree un ítem del catálogo.';
+
+    const qty = Number(stockQuantity);
+    if (!Number.isInteger(qty) || qty < 1 || String(stockQuantity).includes('.')) {
       tempErrors.stockQuantity = 'La cantidad debe ser un número entero mayor o igual a 1.';
     }
 
-    if (category === 'MEDICINES' || category === 'FOOD') {
+    const itemCategory = selectedItem?.category || category;
+    if (itemCategory === 'MEDICINES' || itemCategory === 'FOOD') {
       if (!expirationDate) {
         tempErrors.expirationDate = 'La fecha de vencimiento es obligatoria para Alimentos y Medicamentos.';
       } else {
         const expDate = new Date(expirationDate);
         const today = new Date();
-        // Clear time components for fair comparison
         today.setHours(0, 0, 0, 0);
         expDate.setHours(0, 0, 0, 0);
 
@@ -44,6 +87,12 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
           tempErrors.expirationDate = 'No se pueden registrar recursos con fecha de vencimiento pasada.';
         }
       }
+    }
+
+    const hasCenter = Boolean(collectionCenterId);
+    const hasGps = useGps && latitude != null && longitude != null;
+    if (!hasCenter && !hasGps) {
+      tempErrors.location = 'Indique un centro de acopio o active la ubicación GPS con coordenadas válidas.';
     }
 
     setErrors(tempErrors);
@@ -60,14 +109,19 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
     setLoading(true);
 
     try {
+      const qty = parseInt(stockQuantity, 10);
       const payload = {
-        name,
-        category,
-        stockQuantity: parseInt(stockQuantity, 10),
+        itemId: selectedItem.id,
+        stockQuantity: qty,
+        collectionCenterId: collectionCenterId || undefined,
       };
 
+      if (!collectionCenterId && useGps && latitude != null && longitude != null) {
+        payload.latitude = latitude;
+        payload.longitude = longitude;
+      }
+
       if (expirationDate) {
-        // Convert to ISO 8601 string
         payload.expirationDate = new Date(expirationDate).toISOString();
       }
 
@@ -75,7 +129,7 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
+          Authorization: token ? `Bearer ${token}` : '',
         },
         body: JSON.stringify(payload),
       });
@@ -87,17 +141,18 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
       }
 
       setServerMessage(data.message || 'Recurso registrado exitosamente.');
-      
-      // Reset form
-      setName('');
+
+      setSelectedItem(null);
       setCategory('');
       setStockQuantity('');
       setExpirationDate('');
+      setCollectionCenterId('');
+      setLatitude(null);
+      setLongitude(null);
+      setUseGps(true);
 
       if (onResourceCataloged) {
-        setTimeout(() => {
-          onResourceCataloged(data.resource);
-        }, 1500);
+        onResourceCataloged(data.resource);
       }
     } catch (err) {
       console.error(err);
@@ -107,6 +162,8 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
     }
   };
 
+  const itemCategory = selectedItem?.category || category;
+
   return (
     <div className="catalog-form-card">
       <h3>Catalogar Recurso</h3>
@@ -114,59 +171,33 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="input-group">
-          <label htmlFor="res-name">Nombre del Recurso / Item *</label>
-          <input
-            id="res-name"
-            type="text"
-            placeholder="Ej. Insulina, Harina de Maíz, Suero Fisiológico"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={errors.name ? 'input-error' : ''}
+          <label>Ítem del catálogo *</label>
+          <ItemAutocomplete
+            value={selectedItem}
+            category={category}
+            onCategoryChange={handleCategoryChange}
+            onChange={setSelectedItem}
+            placeholder="Ej. Insulina, Harina de Maíz..."
           />
-          {errors.name && <span className="error-message">{errors.name}</span>}
+          {errors.item && <span className="error-message">{errors.item}</span>}
         </div>
 
-        <div className="input-row">
-          <div className="input-group">
-            <label htmlFor="res-category">Categoría *</label>
-            <select
-              id="res-category"
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                // Clear expiration date if category doesn't require it
-                if (e.target.value !== 'MEDICINES' && e.target.value !== 'FOOD') {
-                  setExpirationDate('');
-                }
-              }}
-              className={errors.category ? 'input-error' : ''}
-            >
-              <option value="">Seleccione Categoría</option>
-              {CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-            {errors.category && <span className="error-message">{errors.category}</span>}
-          </div>
-
-          <div className="input-group">
-            <label htmlFor="res-quantity">Cantidad *</label>
-            <input
-              id="res-quantity"
-              type="number"
-              min="1"
-              placeholder="Ej. 100"
-              value={stockQuantity}
-              onChange={(e) => setStockQuantity(e.target.value)}
-              className={errors.stockQuantity ? 'input-error' : ''}
-            />
-            {errors.stockQuantity && <span className="error-message">{errors.stockQuantity}</span>}
-          </div>
+        <div className="input-group">
+          <label htmlFor="res-quantity">Cantidad *</label>
+          <input
+            id="res-quantity"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="Ej. 100"
+            value={stockQuantity}
+            onChange={(e) => setStockQuantity(e.target.value)}
+            className={errors.stockQuantity ? 'input-error' : ''}
+          />
+          {errors.stockQuantity && <span className="error-message">{errors.stockQuantity}</span>}
         </div>
 
-        {(category === 'MEDICINES' || category === 'FOOD') && (
+        {(itemCategory === 'MEDICINES' || itemCategory === 'FOOD') && (
           <div className="input-group expiration-group">
             <label htmlFor="res-expiration">Fecha de Vencimiento *</label>
             <input
@@ -179,6 +210,40 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
             {errors.expirationDate && <span className="error-message">{errors.expirationDate}</span>}
           </div>
         )}
+
+        <div className="input-group">
+          <label htmlFor="res-center">Centro de Acopio (ubicación de la oferta)</label>
+          <select
+            id="res-center"
+            value={collectionCenterId}
+            onChange={(e) => handleCenterChange(e.target.value)}
+          >
+            <option value="">Sin centro — usar mi ubicación GPS</option>
+            {collectionCenters.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {!collectionCenterId && (
+          <div className="gps-status-row" style={{ marginBottom: '16px', fontSize: '12px' }}>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={useGps}
+                onChange={(e) => handleGpsToggle(e.target.checked)}
+              />
+              Usar mi ubicación GPS como punto de origen de la oferta
+            </label>
+            {latitude != null && longitude != null && (
+              <span style={{ color: 'var(--success-color)' }}>
+                📍 {latitude.toFixed(4)}, {longitude.toFixed(4)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {errors.location && <span className="error-message">{errors.location}</span>}
 
         {serverMessage && <div className="alert alert-success">{serverMessage}</div>}
         {serverError && <div className="alert alert-error">{serverError}</div>}
@@ -206,17 +271,6 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
           font-size: 13px;
           margin-bottom: 20px;
         }
-        .input-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-        @media (max-width: 480px) {
-          .input-row {
-            grid-template-columns: 1fr;
-            gap: 0;
-          }
-        }
         .input-group {
           display: flex;
           flex-direction: column;
@@ -228,7 +282,6 @@ export default function ResourceCatalogForm({ token, onResourceCataloged }) {
           font-weight: 500;
           color: var(--text-secondary);
         }
-        input[type="text"],
         input[type="number"],
         input[type="date"],
         select {
