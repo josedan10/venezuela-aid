@@ -1255,12 +1255,12 @@ export default function Home() {
             align-items: center;
             justify-content: center;
             height: 100vh;
-            color: white;
+            color: #0f172a;
             font-family: system-ui, sans-serif;
-            background: #0b0f19;
+            background: #f8fafc;
           }
           .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.1);
+            border: 4px solid #e2e8f0;
             width: 36px;
             height: 36px;
             border-radius: 50%;
@@ -1346,7 +1346,7 @@ export default function Home() {
             justify-content: center;
             width: 100vw;
             height: 100vh;
-            background: rgba(11, 15, 25, 0.9);
+            background: #f8fafc;
             box-sizing: border-box;
             padding: 20px;
           }
@@ -1358,10 +1358,10 @@ export default function Home() {
             align-items: center;
             text-align: center;
             padding: 30px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
             border-radius: 20px;
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
           }
           .selfie-badge-icon {
             font-size: 40px;
@@ -1369,13 +1369,13 @@ export default function Home() {
           }
           .selfie-card h2 {
             font-size: 20px;
-            color: #f8fafc;
+            color: #0f172a;
             margin: 0 0 10px 0;
             font-weight: 700;
           }
           .selfie-instructions {
             font-size: 13px;
-            color: #cbd5e1;
+            color: #475569;
             line-height: 1.5;
             margin-bottom: 20px;
           }
@@ -1442,17 +1442,18 @@ export default function Home() {
             animation: pulse-red 1.5s infinite;
           }
           .selfie-action-btn.secondary {
-            background-color: rgba(255, 255, 255, 0.08);
-            color: #cbd5e1;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
           }
           .selfie-action-btn.secondary:hover {
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: #e2e8f0;
+            color: #0f172a;
           }
           .selfie-logout-btn {
             background: none;
             border: none;
-            color: #94a3b8;
+            color: #64748b;
             font-size: 12px;
             cursor: pointer;
             transition: color 0.2s;
@@ -1460,7 +1461,7 @@ export default function Home() {
             text-decoration: underline;
           }
           .selfie-logout-btn:hover {
-            color: #f8fafc;
+            color: #0f172a;
           }
           @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
@@ -2720,7 +2721,7 @@ export default function Home() {
         }
 
         .bottom-controls-bar {
-          position: fixed;
+          position: absolute;
           bottom: 20px;
           left: 20px;
           pointer-events: auto;
