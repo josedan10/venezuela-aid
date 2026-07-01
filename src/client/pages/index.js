@@ -2860,7 +2860,7 @@ export default function Home() {
           display: flex;
           justify-content: space-between;
           flex: 1;
-          height: calc(100vh - 160px);
+          min-height: 0;
           gap: 20px;
           box-sizing: border-box;
           overflow: hidden;
