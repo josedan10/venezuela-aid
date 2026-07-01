@@ -3968,6 +3968,7 @@ export default function Home() {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          color: #0f172a;
         }
         .priority-high-border { border-color: rgba(239, 68, 68, 0.3) !important; }
         .need-card-header { display: flex; justify-content: space-between; font-size: 11px; }
@@ -4015,6 +4016,7 @@ export default function Home() {
           background: #f8fafc;
           border: 1px solid #e2e8f0;
           border-radius: 10px;
+          color: #0f172a;
         }
         .resource-meta { display: flex; flex-direction: column; }
         .res-row-name { font-size: 12px; font-weight: 600; color: #0f172a; }
