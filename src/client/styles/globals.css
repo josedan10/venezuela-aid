@@ -36,6 +36,7 @@
   --radius: 0.5rem;
 
   /* Legacy aliases mapped to light theme */
+  --primary-color: #2563eb;
   --bg-body: #f8fafc;
   --bg-card: rgba(255, 255, 255, 0.95);
   --bg-card-hover: #ffffff;
