@@ -3733,8 +3733,10 @@ export default function Home() {
           font-size: 13px;
           margin: 8px 0;
           padding: 8px;
-          background: rgba(0,0,0,0.2);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 6px;
+          color: #0f172a;
         }
         .proposal-matches ul {
           margin: 4px 0 0 16px;
@@ -3818,15 +3820,16 @@ export default function Home() {
           border-radius: 16px;
         }
         .task-details {
-          background-color: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 12px;
           border-radius: 10px;
           font-size: 12px;
           margin-bottom: 14px;
+          color: #0f172a;
         }
         .confirm-delivery-form {
-          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          border-top: 1px dashed #cbd5e1;
           padding-top: 12px;
         }
         .confirm-btn {
@@ -3847,22 +3850,23 @@ export default function Home() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 10px 14px;
           border-radius: 10px;
+          color: #0f172a;
         }
         .driver-info, .matching-info {
           display: flex;
           flex-direction: column;
         }
-        .driver-name, .need-title { font-weight: 600; font-size: 13px; color: #f8fafc; }
-        .driver-sub { font-size: 11px; color: #94a3b8; }
+        .driver-name, .need-title { font-weight: 600; font-size: 13px; color: #0f172a; }
+        .driver-sub { font-size: 11px; color: #64748b; }
         .approve-btn, .match-btn { background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
 
         .fleet-hint {
           font-size: 12px;
-          color: #94a3b8;
+          color: #64748b;
           margin: 0 0 12px 0;
         }
         .fleet-list {
@@ -3875,10 +3879,11 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           gap: 12px;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 10px 14px;
           border-radius: 10px;
+          color: #0f172a;
         }
         .fleet-driver-info {
           display: flex;
@@ -3895,12 +3900,12 @@ export default function Home() {
         }
         .fleet-status-badge.online {
           background: rgba(16, 185, 129, 0.15);
-          color: #34d399;
+          color: #059669;
           border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .fleet-status-badge.offline {
           background: rgba(148, 163, 184, 0.15);
-          color: #94a3b8;
+          color: #64748b;
           border: 1px solid rgba(148, 163, 184, 0.3);
         }
 
@@ -3908,15 +3913,17 @@ export default function Home() {
           padding: 14px 16px;
           margin-bottom: 14px;
           border-radius: 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
         }
         .driver-vehicle-summary h4 {
           margin: 0 0 8px 0;
           font-size: 13px;
-          color: #f8fafc;
+          color: #0f172a;
         }
         .vehicle-summary-line {
           font-size: 12px;
-          color: #cbd5e1;
+          color: #475569;
           margin: 6px 0 0 0;
           line-height: 1.4;
         }
@@ -3932,11 +3939,11 @@ export default function Home() {
           align-items: center;
           margin-bottom: 12px;
         }
-        .panel-header h3 { font-size: 14px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; }
+        .panel-header h3 { font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
         .refresh-btn {
           background: none;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #94a3b8;
+          border: 1px solid #cbd5e1;
+          color: #64748b;
           width: 26px;
           height: 26px;
           border-radius: 50%;
@@ -3953,8 +3960,8 @@ export default function Home() {
         }
 
         .need-item-card {
-          background: rgba(0, 0, 0, 0.15);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 12px;
           border-radius: 10px;
           display: flex;
@@ -3963,12 +3970,12 @@ export default function Home() {
         }
         .priority-high-border { border-color: rgba(239, 68, 68, 0.3) !important; }
         .need-card-header { display: flex; justify-content: space-between; font-size: 11px; }
-        .need-location { font-weight: 700; color: #94a3b8; }
+        .need-location { font-weight: 700; color: #475569; }
         .priority-badge { font-weight: 800; }
-        .priority-badge.high { color: #f87171; }
-        .priority-badge.normal { color: #60a5fa; }
-        .need-card-desc { font-size: 12px; color: #cbd5e1; line-height: 1.4; }
-        .need-card-footer { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 6px; font-size: 10px; }
+        .priority-badge.high { color: #ef4444; }
+        .priority-badge.normal { color: #2563eb; }
+        .need-card-desc { font-size: 12px; color: #334155; line-height: 1.4; }
+        .need-card-footer { border-top: 1px solid #e2e8f0; padding-top: 6px; font-size: 10px; }
         
         .donor-resources-panel {
           margin-top: 20px;
@@ -4004,16 +4011,16 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px 12px;
-          background: rgba(0, 0, 0, 0.15);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 10px;
         }
         .resource-meta { display: flex; flex-direction: column; }
-        .res-row-name { font-size: 12px; font-weight: 600; color: #f8fafc; }
-        .res-row-category { font-size: 9px; color: #94a3b8; text-transform: uppercase; }
-        .res-row-qty { font-size: 12px; font-weight: 700; color: #fdba74; }
+        .res-row-name { font-size: 12px; font-weight: 600; color: #0f172a; }
+        .res-row-category { font-size: 9px; color: #64748b; text-transform: uppercase; }
+        .res-row-qty { font-size: 12px; font-weight: 700; color: #ea580c; }
 
-        .empty-panel-msg { font-size: 11px; color: #94a3b8; font-style: italic; text-align: center; padding: 10px 0; }
+        .empty-panel-msg { font-size: 11px; color: #64748b; font-style: italic; text-align: center; padding: 10px 0; }
         .margin-top { margin-top: 16px; }
 
         .alert {
