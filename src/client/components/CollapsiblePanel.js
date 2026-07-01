@@ -38,13 +38,12 @@ export default function CollapsiblePanel({
 
       <style jsx>{`
         .collapsible-panel {
-          background: rgba(15, 23, 42, 0.85);
+          background: rgba(0, 0, 0, 1);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 16px;
           padding: 20px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
           box-sizing: border-box;
         }
         .collapsible-panel:global(.margin-top) {

@@ -5,6 +5,7 @@ import ResourceCatalogForm from '../components/ResourceCatalogForm';
 import NeedSubmissionForm from '../components/NeedSubmissionForm';
 import CollapsiblePanel from '../components/CollapsiblePanel';
 import dynamic from 'next/dynamic';
+import { Button } from "@/components/ui/button"
 
 const MapComponent = dynamic(() => import('../components/MapComponent'), { ssr: false });
 import { initSocket, sendLocation, disconnectSocket, syncBufferedCoordinates } from '../utils/socket';
@@ -496,6 +497,17 @@ export default function Home() {
     setActiveTab('mapa_publico');
   };
 
+  useEffect(() => {
+    const handleOpenProfile = () => setShowProfileModal(true);
+    const handleAppLogout = () => handleLogout();
+    window.addEventListener('open-profile-modal', handleOpenProfile);
+    window.addEventListener('app:logout', handleAppLogout);
+    return () => {
+      window.removeEventListener('open-profile-modal', handleOpenProfile);
+      window.removeEventListener('app:logout', handleAppLogout);
+    };
+  }, [handleLogout]);
+
   const fetchMyTeamDetails = async () => {
     if (!authToken) return;
     try {
@@ -838,7 +850,7 @@ export default function Home() {
 
   const handleAcceptProposal = async () => {
     if (!activeProposal || !currentUser) return;
-    
+
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/dispatch/accept`, {
         method: 'POST',
@@ -859,7 +871,7 @@ export default function Home() {
 
       setActiveTask(data.task);
       setActiveProposal(null);
-      
+
       startGPSTracking();
       refreshNeeds();
     } catch (err) {
@@ -933,14 +945,14 @@ export default function Home() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      
+
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg');
       setSelfieCaptureUrl(dataUrl);
-      
+
       // Detener flujo de cámara
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -1223,7 +1235,7 @@ export default function Home() {
   };
 
   const handleServiceCheckbox = (service) => {
-    setCenterServices(prev => 
+    setCenterServices(prev =>
       prev.includes(service) ? prev.filter(s => s !== service) : [...prev, service]
     );
   };
@@ -1289,17 +1301,17 @@ export default function Home() {
             <span className="selfie-badge-icon">📸</span>
             <h2>Verificación de Identidad Requerida</h2>
             <p className="selfie-instructions">
-              Para comenzar a operar en <strong>AyudaVenezuela</strong>, debes tomarte una selfie en vivo utilizando tu cámara. 
+              Para comenzar a operar en <strong>AyudaVenezuela</strong>, debes tomarte una selfie en vivo utilizando tu cámara.
               Esto nos permite garantizar que todos los colaboradores sean personas reales.
             </p>
-            
+
             <div className="camera-viewport-container">
               {selfieCaptureUrl ? (
                 <img src={selfieCaptureUrl} className="selfie-preview-img" alt="Selfie Capturada" />
               ) : (
                 <video ref={videoRef} autoPlay playsInline className="selfie-video-preview"></video>
               )}
-              
+
               {!cameraActive && !selfieCaptureUrl && (
                 <div className="camera-placeholder">
                   <span>Cámara inactiva</span>
@@ -1335,7 +1347,7 @@ export default function Home() {
                 </>
               )}
             </div>
-            
+
             <button onClick={handleLogout} className="selfie-logout-btn">Cerrar Sesión</button>
           </div>
         </div>
@@ -1496,7 +1508,7 @@ export default function Home() {
 
       {/* FLOATING ACTION OVERLAY CONTROLLER */}
       <div className="floating-ui-container">
-        
+
         {/* Bottom controls — minimal map chrome */}
         <div className="bottom-controls-bar glass animate-fade-in">
           <button
@@ -1520,51 +1532,16 @@ export default function Home() {
 
         {showPanels && (
           <div className="panels-layout-wrapper">
-            
-            {/* FLOATING HEADER: Brand Logo and Login/Logout status */}
-            <div className="floating-header glass animate-fade-in">
-              <div className="brand-box">
-                <span className="brand-logo">🇻🇪</span>
-                <div className="brand-text">
-                  <h2>AyudaVenezuela</h2>
-                  <p>Coordinación Humanitaria de Emergencia</p>
-                </div>
-              </div>
-              
-              {firebaseUser ? (
-                <div className="header-session-info">
-                  {currentUser ? (
-                    <button
-                      className="profile-btn"
-                      onClick={() => setShowProfileModal(true)}
-                      title="Configurar Perfil"
-                    >
-                      {currentUser.selfieUrl ? (
-                        <img src={currentUser.selfieUrl} className="profile-avatar-img" alt="avatar" />
-                      ) : (
-                        <span className="profile-avatar-placeholder">👤</span>
-                      )}
-                      <span className="profile-name-label">{currentUser.name.split(' ')[0]}</span>
-                    </button>
-                  ) : (
-                    <span>Cargando...</span>
-                  )}
-                  <button onClick={handleLogout} className="logout-btn">Salir</button>
-                </div>
-              ) : (
-                <span className="guest-badge">Modo Invitado / Observador</span>
-              )}
-            </div>
 
             {/* TWO FLOATING COLUMNS OVER THE MAP */}
             <div className="floating-body-columns">
-              
+
               {/* LEFT COLUMN: Navigation & Dynamic tab forms */}
               <div className={`column-panel left-panel animate-slide-up ${leftMinimized ? 'minimized' : ''}`}>
                 <div className="panel-header-minimize">
                   <span>{leftMinimized ? '📁 Panel de Control' : ''}</span>
-                  <button 
-                    className="minimize-panel-btn" 
+                  <button
+                    className="minimize-panel-btn"
                     onClick={() => setLeftMinimized(!leftMinimized)}
                     title={leftMinimized ? "Maximizar Panel" : "Minimizar Panel"}
                   >
@@ -1593,7 +1570,7 @@ export default function Home() {
                           )}
                           <p className="point-desc"><strong>Descripción:</strong> {selectedPoint.data.description}</p>
                           <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
-                          
+
                           {currentUser && userRoles.includes('NGO') && (
                             <button
                               onClick={() => {
@@ -1706,653 +1683,653 @@ export default function Home() {
                           Equipos {myTeam && !myTeam.inTeam && <span className="tab-dot">●</span>}
                         </button>
                       )}
-                      {!currentUser && (
-                        <button
-                          onClick={() => setActiveTab('register')}
-                          className={activeTab === 'register' ? 'tab-btn register-tab active' : 'tab-btn register-tab'}
-                        >
-                          Registrarse
-                        </button>
-                      )}
+                      {/* {!currentUser && (
+                        // <button
+                        //   onClick={() => setActiveTab('register')}
+                        //   className={activeTab === 'register' ? 'tab-btn register-tab active' : 'tab-btn register-tab'}
+                        // >
+                        //   Registrarse
+                        // </button>
+                      )} */}
                     </div>
 
-                {/* MAP INSTRUCTIONS TAB (LANDING VIEW) */}
-                {activeTab === 'mapa_publico' && (
-                  <div className="tab-pane-content glass-card">
-                    <div className="welcome-badge">Panel Informativo</div>
-                    <p className="panel-text">
-                      Estás visualizando el mapa nacional de ayuda en tiempo real.
-                    </p>
-                    <div className="legend-box">
-                      <div className="legend-item"><span className="dot red"></span><span>Emergencia Inmediata</span></div>
-                      <div className="legend-item"><span className="dot blue"></span><span>Necesidad Normal</span></div>
-                      <div className="legend-item"><span className="dot orange"></span><span>Centro de Acopio (🏠)</span></div>
-                      <div className="legend-item"><span className="dot cyan"></span><span>Mi Ubicación Actual (👤)</span></div>
-                    </div>
-
-                    <button
-                      className={`register-center-trigger-btn ${isSelectingLocation ? 'active' : ''}`}
-                      onClick={() => setIsSelectingLocation(!isSelectingLocation)}
-                    >
-                      {isSelectingLocation ? '✕ Cancelar Registro' : '📍 Registrar Centro de Acopio'}
-                    </button>
-
-                    <p className="panel-text-small text-orange" style={{ marginTop: '12px' }}>
-                      {isSelectingLocation 
-                        ? '👉 Ahora haz clic sobre cualquier punto del mapa para ubicar el centro.' 
-                        : '💡 Presiona el botón de arriba y luego haz clic en el mapa para registrar un nuevo centro de acopio.'}
-                    </p>
-                  </div>
-                )}
-
-                {/* REGISTER TAB */}
-                {activeTab === 'register' && !currentUser && (
-                  <RegisterForm onRegisterSuccess={() => {}} />
-                )}
-
-                {/* DONOR DASHBOARD */}
-                {activeTab === 'donor' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('DONOR') ? (
-                      <div className="glass-card">
-                        <div className="welcome-badge">Aportar Recursos</div>
-                        <ResourceCatalogForm
-                          token={authToken}
-                          collectionCenters={collectionCentersList}
-                          onResourceCataloged={refreshResources}
-                        />
-
-                        <CollapsiblePanel
-                          className="status-panel glass-card margin-top donor-resources-panel"
-                          title="Recursos Catalogados"
-                          collapsed={isPanelCollapsed('donor-resources')}
-                          onToggle={() => togglePanelCollapse('donor-resources')}
-                          onRefresh={refreshResources}
-                        >
-                          <div className="resources-list-box">
-                            {resourcesList.map((res) => (
-                              <div
-                                key={res.id}
-                                className={`resource-row ${res.donorId === currentUser.id ? 'own-resource' : ''}`}
-                              >
-                                <div className="resource-meta">
-                                  <span className="res-row-name">
-                                    {res.name}
-                                    {res.donorId === currentUser.id && (
-                                      <span className="own-resource-badge">Tuyo</span>
-                                    )}
-                                  </span>
-                                  <span className="res-row-category">{res.category}</span>
-                                  {res.collectionCenter && (
-                                    <span className="res-row-location">@ {res.collectionCenter.name}</span>
-                                  )}
-                                  {res.donor && res.donorId !== currentUser.id && (
-                                    <span className="res-row-location">Donante: {res.donor.name}</span>
-                                  )}
-                                </div>
-                                <span className="res-row-qty">{res.stockQuantity} un.</span>
-                              </div>
-                            ))}
-                            {resourcesList.length === 0 && (
-                              <p className="empty-panel-msg">Aún no hay recursos en el inventario.</p>
-                            )}
-                          </div>
-                        </CollapsiblePanel>
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Limitado a Donantes</h3>
-                        <p>Inicie sesión con su cuenta de Donante para catalogar y registrar aportes.</p>
-                        {!currentUser && renderLoginForm()}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* NGO DASHBOARD */}
-                {activeTab === 'ngo' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('NGO') ? (
-                      <div className="glass-card">
-                        <div className="welcome-badge">Solicitar Insumos</div>
-                        <NeedSubmissionForm
-                          token={authToken}
-                          ngoId={currentUser?.id}
-                          prefill={needPrefill}
-                          onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Limitado a ONGs</h3>
-                        <p>Inicie sesión con su cuenta de ONG / Beneficiario para crear solicitudes de insumos.</p>
-                        {!currentUser && renderLoginForm()}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* DRIVER DASHBOARD */}
-                {activeTab === 'driver' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('DRIVER') ? (
-                      <div className="driver-dashboard-grid">
-                        
-                        {/* Account state banner */}
-                        <div className="driver-status-card glass-card">
-                          <div className="driver-header">
-                            <h3>Mi Perfil de Conductor</h3>
-                            {currentUser.driverDetails ? (
-                              <span className={`status-badge ${currentUser.driverDetails.status}`}>
-                                {currentUser.driverDetails.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'}
-                              </span>
-                            ) : (
-                              <span className="status-badge PENDING_APPROVAL">Incompleto</span>
-                            )}
-                          </div>
-
-                          {!currentUser.driverDetails ? (
-                            <div className="complete-profile-form-box">
-                              <div className="alert alert-warning">
-                                Completa tus datos de vehículo y placa para poder conectarte y recibir asignaciones.
-                              </div>
-
-                              <form onSubmit={handleCompleteDriverProfile} className="complete-profile-form">
-                                <div className="input-group">
-                                  <label htmlFor="drv-cedula">Cédula de Identidad *</label>
-                                  <input
-                                    id="drv-cedula"
-                                    type="text"
-                                    placeholder="Ej. V-12345678"
-                                    value={driverCedula}
-                                    onChange={(e) => setDriverCedula(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-category">Tipo de Vehículo *</label>
-                                  <select
-                                    id="drv-category"
-                                    value={driverVehicleCategory}
-                                    onChange={(e) => {
-                                      const next = e.target.value;
-                                      setDriverVehicleCategory(next);
-                                      const preset = VEHICLE_CATEGORIES.find((c) => c.value === next);
-                                      if (preset) setDriverSeatCount(String(preset.defaultSeats));
-                                    }}
-                                    required
-                                  >
-                                    <option value="">Seleccione categoría</option>
-                                    {VEHICLE_CATEGORIES.map((cat) => (
-                                      <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-seats">Número de Asientos *</label>
-                                  <input
-                                    id="drv-seats"
-                                    type="number"
-                                    min="1"
-                                    max="60"
-                                    placeholder="Ej. 5"
-                                    value={driverSeatCount}
-                                    onChange={(e) => setDriverSeatCount(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-vehicle">Marca / Modelo / Color *</label>
-                                  <input
-                                    id="drv-vehicle"
-                                    type="text"
-                                    placeholder="Ej. Toyota Hilux Blanco"
-                                    value={driverVehicle}
-                                    onChange={(e) => setDriverVehicle(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-plate">Placa del Vehículo *</label>
-                                  <input
-                                    id="drv-plate"
-                                    type="text"
-                                    placeholder="Ej. AA123BB"
-                                    value={driverPlate}
-                                    onChange={(e) => setDriverPlate(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                {driverProfileError && <span className="error-message">{driverProfileError}</span>}
-                                {driverProfileMessage && <span className="success-message">{driverProfileMessage}</span>}
-
-                                <button type="submit" className="confirm-btn">Enviar Perfil</button>
-                              </form>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="driver-vehicle-summary glass-card">
-                                <h4>🚗 Mi Vehículo</h4>
-                                <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
-                              </div>
-
-                              <div className="availability-toggle-section">
-                                <p>
-                                  <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
-                                    {driverAvailable ? 'DISPONIBLE PARA DESPACHOS' : 'NO DISPONIBLE'}
-                                  </strong>
-                                </p>
-                                <button
-                                  onClick={toggleAvailability}
-                                  className={`toggle-btn ${driverAvailable ? 'online' : 'offline'}`}
-                                >
-                                  {driverAvailable ? 'Desconectarse' : 'Conectarse (Disponible)'}
-                                </button>
-                              </div>
-                              {driverStatusMessage && <div className="status-msg">{driverStatusMessage}</div>}
-
-                              {/* Network Loss Simulator */}
-                              <div className="network-simulator-card">
-                                <div className="network-sim-header">
-                                  <span>Simulador Fuera de Línea</span>
-                                  <span className={`network-status ${offlineSimulation ? 'offline' : 'online'}`}>
-                                    {offlineSimulation ? '🔴 SIN SEÑAL' : '🟢 CON SEÑAL'}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={toggleOfflineSimulation}
-                                  className={`network-toggle-btn ${offlineSimulation ? 'reconnect' : 'disconnect'}`}
-                                >
-                                  {offlineSimulation ? 'Sincronizar Coordenadas' : 'Simular Corte de Señal'}
-                                </button>
-                                {offlineCount > 0 && (
-                                  <div className="offline-buffer-badge">
-                                    ⚠️ {offlineCount} coordenadas en cola local esperando señal...
-                                  </div>
-                                )}
-                              </div>
-
-                              <CollapsiblePanel
-                                className="nearby-needs-card glass-card"
-                                title={`🔔 Alertas Cercanas (${driverRadius} km)`}
-                                headingLevel="h4"
-                                collapsed={isPanelCollapsed('driver-nearby-needs')}
-                                onToggle={() => togglePanelCollapse('driver-nearby-needs')}
-                              >
-                                <p className="nearby-hint">Priorizadas por proximidad al punto de origen (donde están las personas).</p>
-                                <div className="nearby-needs-list">
-                                  {nearbyNeeds.map((need) => (
-                                    <div key={need.id} className="nearby-need-row">
-                                      <div className="need-meta">
-                                        <span className="need-location">
-                                          {need.originLabel || `${need.state} - ${need.sector}`}
-                                        </span>
-                                        <span className="need-distance">{need.distanceKm?.toFixed(1)} km</span>
-                                      </div>
-                                      <p className="need-desc-text">{need.description}</p>
-                                      {need.items?.length > 0 && (
-                                        <div className="matched-resources-tags">
-                                          <span className="items-label">Solicitado:</span>
-                                          {need.items.map((item) => (
-                                            <span
-                                              key={item.id}
-                                              className={`match-tag ${isNeedItemMatched(item) ? 'matched' : 'unmatched'}`}
-                                            >
-                                              {formatNeedItemLabel(item)}
-                                              {isNeedItemMatched(item) ? ' ✓' : ' ⏳'}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      )}
-                                      <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                                        Prioridad: {need.urgencyScore}
-                                      </span>
-                                    </div>
-                                  ))}
-                                  {nearbyNeeds.length === 0 && (
-                                    <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
-                                  )}
-                                </div>
-                              </CollapsiblePanel>
-                            </>
-                          )}
+                    {/* MAP INSTRUCTIONS TAB (LANDING VIEW) */}
+                    {activeTab === 'mapa_publico' && (
+                      <div className="tab-pane-content glass-card">
+                        <div className="welcome-badge">Panel Informativo</div>
+                        <p className="panel-text">
+                          Estás visualizando el mapa nacional de ayuda en tiempo real.
+                        </p>
+                        <div className="legend-box">
+                          <div className="legend-item"><span className="dot red"></span><span>Emergencia Inmediata</span></div>
+                          <div className="legend-item"><span className="dot blue"></span><span>Necesidad Normal</span></div>
+                          <div className="legend-item"><span className="dot orange"></span><span>Centro de Acopio (🏠)</span></div>
+                          <div className="legend-item"><span className="dot cyan"></span><span>Mi Ubicación Actual (👤)</span></div>
                         </div>
 
-                        {/* ACTIVE OFFER PROPOSAL */}
-                        {activeProposal && (
-                          <div className="proposal-card glass-card active-glow">
-                            <div className="proposal-pulse-header">
-                              <h4>🚨 ¡DESPACHO PROPUESTO!</h4>
-                              <span className="countdown-timer">{proposalCountdown}s</span>
-                            </div>
-                            <p className="proposal-desc">{activeProposal.description}</p>
-                            {activeProposal.origin && (
-                              <div className="proposal-route">
-                                <p><strong>📍 Origen (recoger):</strong> {activeProposal.origin.label}</p>
-                                {activeProposal.destination && (
-                                  <p><strong>🏁 Destino (entregar):</strong> {activeProposal.destination.label}</p>
-                                )}
-                              </div>
-                            )}
-                            {activeProposal.matchedItems?.length > 0 && (
-                              <div className="proposal-matches">
-                                <strong>Recursos emparejados:</strong>
-                                <ul>
-                                  {activeProposal.matchedItems.map((item, idx) => (
-                                    <li key={idx}>
-                                      {item.quantity}x {item.requested} → {item.offer}
-                                      {item.pickupLabel && ` @ ${item.pickupLabel}`}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            <div className="proposal-actions">
-                              <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
-                              <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
-                            </div>
-                          </div>
-                        )}
+                        <button
+                          className={`register-center-trigger-btn ${isSelectingLocation ? 'active' : ''}`}
+                          onClick={() => setIsSelectingLocation(!isSelectingLocation)}
+                        >
+                          {isSelectingLocation ? '✕ Cancelar Registro' : '📍 Registrar Centro de Acopio'}
+                        </button>
 
-                        {/* ACTIVE TRANSIT TASK */}
-                        {activeTask && (
-                          <div className="active-task-card glass-card">
-                            <h4>📦 Entrega en Progreso</h4>
-                            <div className="task-details">
-                              <p>ID: <code>{activeTask.id}</code></p>
-                              <p>Ubicación GPS: {driverLat != null ? driverLat.toFixed(4) : '—'}, {driverLng != null ? driverLng.toFixed(4) : '—'}</p>
-                              {activeTask.pickupLatitude && activeTask.pickupLongitude && (
-                                <p><strong>Origen:</strong> {activeTask.pickupLabel || 'Punto de recogida'}</p>
-                              )}
-                              {activeTask.need && (
-                                <div className="maps-navigation-box">
-                                  {driverLat != null && driverLng != null && activeTask.pickupLatitude && activeTask.need.latitude && (
-                                    <a
-                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="google-maps-btn"
-                                    >
-                                      🗺️ Ruta: Recoger en Origen → Entregar
-                                    </a>
-                                  )}
-                                  {driverLat != null && driverLng != null && !activeTask.pickupLatitude && activeTask.need.latitude && (
-                                    <a
-                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="google-maps-btn"
-                                    >
-                                      🗺️ Abrir en Google Maps para Navegar
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
-                              <h5>Confirmar Recepción</h5>
-                              <div className="input-group">
-                                <label htmlFor="del-signature">Nombre / Cédula Receptor</label>
-                                <input
-                                  id="del-signature"
-                                  type="text"
-                                  value={deliverySignature}
-                                  onChange={(e) => setDeliverySignature(e.target.value)}
-                                />
-                              </div>
-                              <div className="input-group">
-                                <label htmlFor="del-photo">URL Foto de Entrega</label>
-                                <input
-                                  id="del-photo"
-                                  type="text"
-                                  value={deliveryPhoto}
-                                  onChange={(e) => setDeliveryPhoto(e.target.value)}
-                                />
-                              </div>
-                              {deliveryError && <span className="error-message">{deliveryError}</span>}
-                              {deliveryMessage && <span className="success-message">{deliveryMessage}</span>}
-                              <button type="submit" className="confirm-btn">Confirmar Entrega</button>
-                            </form>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Conductor Requerido</h3>
-                        <p>Inicie sesión con su cuenta de Conductor para conectarse y administrar entregas.</p>
-                        {!currentUser && renderLoginForm()}
+                        <p className="panel-text-small text-orange" style={{ marginTop: '12px' }}>
+                          {isSelectingLocation
+                            ? '👉 Ahora haz clic sobre cualquier punto del mapa para ubicar el centro.'
+                            : '💡 Presiona el botón de arriba y luego haz clic en el mapa para registrar un nuevo centro de acopio.'}
+                        </p>
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* ADMINISTRATOR SIMULATOR TAB */}
-                {activeTab === 'admin' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('ADMIN') ? (
-                      <div className="admin-panel">
-                        <CollapsiblePanel
-                          className="admin-drivers-section glass-card"
-                          title="Vetting de Conductores"
-                          headingLevel="h4"
-                          collapsed={isPanelCollapsed('admin-pending-drivers')}
-                          onToggle={() => togglePanelCollapse('admin-pending-drivers')}
-                        >
-                          {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
-                          <div className="drivers-approval-list">
-                             {pendingDrivers.map((driver) => (
-                              <div key={driver.id} className="driver-approval-row">
-                                <div className="driver-info">
-                                  <span className="driver-name">{driver.name}</span>
-                                  <span className="driver-sub">Cédula: {driver.driverDetails.cedula}</span>
-                                  <span className="driver-sub">
-                                    {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
-                                  </span>
-                                  <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
-                                </div>
-                                <button onClick={() => handleApproveDriver(driver.id)} className="approve-btn">Aprobar</button>
-                              </div>
-                            ))}
-                            {pendingDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores pendientes.</p>}
-                          </div>
-                        </CollapsiblePanel>
-
-                        <CollapsiblePanel
-                          className="admin-fleet-section glass-card margin-top"
-                          title="Flota Verificada"
-                          headingLevel="h4"
-                          collapsed={isPanelCollapsed('admin-fleet')}
-                          onToggle={() => togglePanelCollapse('admin-fleet')}
-                        >
-                          <p className="fleet-hint">Conductores aprobados y tipos de vehículo disponibles en la red.</p>
-                          <div className="fleet-list">
-                            {fleetDrivers.map((driver) => (
-                              <div key={driver.id} className="fleet-row">
-                                <div className="fleet-driver-info">
-                                  <span className="driver-name">{driver.name}</span>
-                                  <span className="driver-sub">
-                                    {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
-                                  </span>
-                                  <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
-                                </div>
-                                <span className={`fleet-status-badge ${driver.available ? 'online' : 'offline'}`}>
-                                  {driver.available ? 'Disponible' : 'No disponible'}
-                                </span>
-                              </div>
-                            ))}
-                            {fleetDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores verificados en la flota.</p>}
-                          </div>
-                        </CollapsiblePanel>
-
-                        <CollapsiblePanel
-                          className="admin-matching-section glass-card margin-top"
-                          title="Emparejamiento Manual"
-                          headingLevel="h4"
-                          collapsed={isPanelCollapsed('admin-matching')}
-                          onToggle={() => togglePanelCollapse('admin-matching')}
-                        >
-                          <div className="matching-controls-list">
-                            {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
-                              <div key={need.id} className="matching-row">
-                                <div className="matching-info">
-                                  <span className="need-title">{need.description}</span>
-                                  <span className="need-sub">
-                                    Origen: {need.originLabel || `${need.state} - ${need.sector}`}
-                                  </span>
-                                  {need.items?.length > 0 && (
-                                    <span className="need-sub">
-                                      Solicitado: {need.items.map((item) => formatNeedItemLabel(item)).join(' · ')}
-                                    </span>
-                                  )}
-                                </div>
-                                <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
-                              </div>
-                            ))}
-                            {needsQueue.filter(n => n.status === 'PENDING').length === 0 && <p className="no-matching-msg">No hay solicitudes pendientes.</p>}
-                          </div>
-                        </CollapsiblePanel>
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Administrador Requerido</h3>
-                        <p>Inicie sesión con cuenta de Administrador para realizar vetting.</p>
-                        {!currentUser && renderLoginForm()}
-                      </div>
+                    {/* REGISTER TAB */}
+                    {activeTab === 'register' && !currentUser && (
+                      <RegisterForm onRegisterSuccess={() => { }} />
                     )}
-                  </div>
-                )}
 
-                {/* TEAMS MANAGEMENT TAB */}
-                {activeTab === 'equipos' && (
-                  <div className="tab-pane-content">
-                    {currentUser ? (
-                      <div className="teams-dashboard">
-                        {myTeam && myTeam.inTeam ? (
+                    {/* DONOR DASHBOARD */}
+                    {activeTab === 'donor' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('DONOR') ? (
                           <div className="glass-card">
-                            <div className="welcome-badge">Mi Equipo: {myTeam.team.name}</div>
-                            {myTeam.team.description && (
-                              <p className="team-description">{myTeam.team.description}</p>
-                            )}
-                            <p className="profile-setting-hint team-sharing-hint">
-                              Compartir ubicación con el equipo: configuración en ⚙️ Perfil.
-                            </p>
+                            <div className="welcome-badge">Aportar Recursos</div>
+                            <ResourceCatalogForm
+                              token={authToken}
+                              collectionCenters={collectionCentersList}
+                              onResourceCataloged={refreshResources}
+                            />
 
                             <CollapsiblePanel
-                              className="nested"
-                              title="Miembros del Equipo"
-                              headingLevel="h4"
-                              collapsed={isPanelCollapsed('team-members')}
-                              onToggle={() => togglePanelCollapse('team-members')}
+                              className="status-panel glass-card margin-top donor-resources-panel"
+                              title="Recursos Catalogados"
+                              collapsed={isPanelCollapsed('donor-resources')}
+                              onToggle={() => togglePanelCollapse('donor-resources')}
+                              onRefresh={refreshResources}
                             >
-                              <div className="team-members-list">
-                                {myTeam.team.members.map((member) => (
-                                  <div key={member.id} className="team-member-row">
-                                    <div className="member-meta">
-                                      <span className="member-name">
-                                        {member.name} {member.id === currentUser.id ? '(Tú)' : ''}
+                              <div className="resources-list-box">
+                                {resourcesList.map((res) => (
+                                  <div
+                                    key={res.id}
+                                    className={`resource-row ${res.donorId === currentUser.id ? 'own-resource' : ''}`}
+                                  >
+                                    <div className="resource-meta">
+                                      <span className="res-row-name">
+                                        {res.name}
+                                        {res.donorId === currentUser.id && (
+                                          <span className="own-resource-badge">Tuyo</span>
+                                        )}
                                       </span>
-                                      <span className="member-roles">{member.roles.split(',').join(', ')}</span>
-                                    </div>
-                                    <div className="member-location-status">
-                                      {member.shareLocationWithTeam ? (
-                                        member.location ? (
-                                          <span className="location-active-badge">
-                                            🟢 En vivo: {member.location.latitude.toFixed(4)}, {member.location.longitude.toFixed(4)}
-                                          </span>
-                                        ) : (
-                                          <span className="location-pending-badge">🟡 Esperando GPS</span>
-                                        )
-                                      ) : (
-                                        <span className="location-inactive-badge">🔴 Sin compartir</span>
+                                      <span className="res-row-category">{res.category}</span>
+                                      {res.collectionCenter && (
+                                        <span className="res-row-location">@ {res.collectionCenter.name}</span>
+                                      )}
+                                      {res.donor && res.donorId !== currentUser.id && (
+                                        <span className="res-row-location">Donante: {res.donor.name}</span>
                                       )}
                                     </div>
+                                    <span className="res-row-qty">{res.stockQuantity} un.</span>
                                   </div>
                                 ))}
+                                {resourcesList.length === 0 && (
+                                  <p className="empty-panel-msg">Aún no hay recursos en el inventario.</p>
+                                )}
                               </div>
                             </CollapsiblePanel>
-
-                            <button onClick={handleLeaveTeam} className="leave-team-btn">
-                              Salir del Equipo
-                            </button>
                           </div>
                         ) : (
-                          <div className="teams-setup">
-                            <div className="glass-card">
-                              <h4>Crear un Equipo Nuevo</h4>
-                              <form onSubmit={handleCreateTeam} className="create-team-form">
-                                <div className="input-group">
-                                  <label htmlFor="team-name">Nombre del Equipo *</label>
-                                  <input
-                                    id="team-name"
-                                    type="text"
-                                    placeholder="Ej. Unidad de Rescate Caracas"
-                                    value={teamName}
-                                    onChange={(e) => setTeamName(e.target.value)}
-                                    required
-                                  />
-                                </div>
-                                <div className="input-group">
-                                  <label htmlFor="team-desc">Descripción</label>
-                                  <input
-                                    id="team-desc"
-                                    type="text"
-                                    placeholder="Ej. Grupo de conductores voluntarios."
-                                    value={teamDesc}
-                                    onChange={(e) => setTeamDesc(e.target.value)}
-                                  />
-                                </div>
-                                <button type="submit" className="confirm-btn">Crear Equipo</button>
-                              </form>
-                            </div>
-
-                            <CollapsiblePanel
-                              className="margin-top"
-                              title="Unirse a un Equipo Existente"
-                              headingLevel="h4"
-                              collapsed={isPanelCollapsed('available-teams')}
-                              onToggle={() => togglePanelCollapse('available-teams')}
-                            >
-                              <div className="available-teams-list">
-                                {availableTeams.map((team) => (
-                                  <div key={team.id} className="available-team-row">
-                                    <div className="team-info">
-                                      <span className="available-team-name">{team.name}</span>
-                                      {team.description && (
-                                        <span className="available-team-desc">{team.description}</span>
-                                      )}
-                                      <span className="team-creator">Creado por: {team.creator.name}</span>
-                                    </div>
-                                    <button
-                                      onClick={() => handleJoinTeam(team.id)}
-                                      className="join-team-btn"
-                                    >
-                                      Unirse
-                                    </button>
-                                  </div>
-                                ))}
-                                {availableTeams.length === 0 && (
-                                  <p className="no-teams-msg">No hay equipos disponibles.</p>
-                                )}
-                              </div>
-                            </CollapsiblePanel>
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Limitado a Donantes</h3>
+                            <p>Inicie sesión con su cuenta de Donante para catalogar y registrar aportes.</p>
+                            {!currentUser && renderLoginForm()}
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Requerido</h3>
-                        <p>Inicie sesión con su cuenta para crear o unirse a un equipo.</p>
-                        {renderLoginForm()}
+                    )}
+
+                    {/* NGO DASHBOARD */}
+                    {activeTab === 'ngo' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('NGO') ? (
+                          <div className="glass-card">
+                            <div className="welcome-badge">Solicitar Insumos</div>
+                            <NeedSubmissionForm
+                              token={authToken}
+                              ngoId={currentUser?.id}
+                              prefill={needPrefill}
+                              onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Limitado a ONGs</h3>
+                            <p>Inicie sesión con su cuenta de ONG / Beneficiario para crear solicitudes de insumos.</p>
+                            {!currentUser && renderLoginForm()}
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
+
+                    {/* DRIVER DASHBOARD */}
+                    {activeTab === 'driver' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('DRIVER') ? (
+                          <div className="driver-dashboard-grid">
+
+                            {/* Account state banner */}
+                            <div className="driver-status-card glass-card">
+                              <div className="driver-header">
+                                <h3>Mi Perfil de Conductor</h3>
+                                {currentUser.driverDetails ? (
+                                  <span className={`status-badge ${currentUser.driverDetails.status}`}>
+                                    {currentUser.driverDetails.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'}
+                                  </span>
+                                ) : (
+                                  <span className="status-badge PENDING_APPROVAL">Incompleto</span>
+                                )}
+                              </div>
+
+                              {!currentUser.driverDetails ? (
+                                <div className="complete-profile-form-box">
+                                  <div className="alert alert-warning">
+                                    Completa tus datos de vehículo y placa para poder conectarte y recibir asignaciones.
+                                  </div>
+
+                                  <form onSubmit={handleCompleteDriverProfile} className="complete-profile-form">
+                                    <div className="input-group">
+                                      <label htmlFor="drv-cedula">Cédula de Identidad *</label>
+                                      <input
+                                        id="drv-cedula"
+                                        type="text"
+                                        placeholder="Ej. V-12345678"
+                                        value={driverCedula}
+                                        onChange={(e) => setDriverCedula(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-category">Tipo de Vehículo *</label>
+                                      <select
+                                        id="drv-category"
+                                        value={driverVehicleCategory}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDriverVehicleCategory(next);
+                                          const preset = VEHICLE_CATEGORIES.find((c) => c.value === next);
+                                          if (preset) setDriverSeatCount(String(preset.defaultSeats));
+                                        }}
+                                        required
+                                      >
+                                        <option value="">Seleccione categoría</option>
+                                        {VEHICLE_CATEGORIES.map((cat) => (
+                                          <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-seats">Número de Asientos *</label>
+                                      <input
+                                        id="drv-seats"
+                                        type="number"
+                                        min="1"
+                                        max="60"
+                                        placeholder="Ej. 5"
+                                        value={driverSeatCount}
+                                        onChange={(e) => setDriverSeatCount(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-vehicle">Marca / Modelo / Color *</label>
+                                      <input
+                                        id="drv-vehicle"
+                                        type="text"
+                                        placeholder="Ej. Toyota Hilux Blanco"
+                                        value={driverVehicle}
+                                        onChange={(e) => setDriverVehicle(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-plate">Placa del Vehículo *</label>
+                                      <input
+                                        id="drv-plate"
+                                        type="text"
+                                        placeholder="Ej. AA123BB"
+                                        value={driverPlate}
+                                        onChange={(e) => setDriverPlate(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    {driverProfileError && <span className="error-message">{driverProfileError}</span>}
+                                    {driverProfileMessage && <span className="success-message">{driverProfileMessage}</span>}
+
+                                    <button type="submit" className="confirm-btn">Enviar Perfil</button>
+                                  </form>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="driver-vehicle-summary glass-card">
+                                    <h4>🚗 Mi Vehículo</h4>
+                                    <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
+                                  </div>
+
+                                  <div className="availability-toggle-section">
+                                    <p>
+                                      <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
+                                        {driverAvailable ? 'DISPONIBLE PARA DESPACHOS' : 'NO DISPONIBLE'}
+                                      </strong>
+                                    </p>
+                                    <button
+                                      onClick={toggleAvailability}
+                                      className={`toggle-btn ${driverAvailable ? 'online' : 'offline'}`}
+                                    >
+                                      {driverAvailable ? 'Desconectarse' : 'Conectarse (Disponible)'}
+                                    </button>
+                                  </div>
+                                  {driverStatusMessage && <div className="status-msg">{driverStatusMessage}</div>}
+
+                                  {/* Network Loss Simulator */}
+                                  <div className="network-simulator-card">
+                                    <div className="network-sim-header">
+                                      <span>Simulador Fuera de Línea</span>
+                                      <span className={`network-status ${offlineSimulation ? 'offline' : 'online'}`}>
+                                        {offlineSimulation ? '🔴 SIN SEÑAL' : '🟢 CON SEÑAL'}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={toggleOfflineSimulation}
+                                      className={`network-toggle-btn ${offlineSimulation ? 'reconnect' : 'disconnect'}`}
+                                    >
+                                      {offlineSimulation ? 'Sincronizar Coordenadas' : 'Simular Corte de Señal'}
+                                    </button>
+                                    {offlineCount > 0 && (
+                                      <div className="offline-buffer-badge">
+                                        ⚠️ {offlineCount} coordenadas en cola local esperando señal...
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <CollapsiblePanel
+                                    className="nearby-needs-card glass-card"
+                                    title={`🔔 Alertas Cercanas (${driverRadius} km)`}
+                                    headingLevel="h4"
+                                    collapsed={isPanelCollapsed('driver-nearby-needs')}
+                                    onToggle={() => togglePanelCollapse('driver-nearby-needs')}
+                                  >
+                                    <p className="nearby-hint">Priorizadas por proximidad al punto de origen (donde están las personas).</p>
+                                    <div className="nearby-needs-list">
+                                      {nearbyNeeds.map((need) => (
+                                        <div key={need.id} className="nearby-need-row">
+                                          <div className="need-meta">
+                                            <span className="need-location">
+                                              {need.originLabel || `${need.state} - ${need.sector}`}
+                                            </span>
+                                            <span className="need-distance">{need.distanceKm?.toFixed(1)} km</span>
+                                          </div>
+                                          <p className="need-desc-text">{need.description}</p>
+                                          {need.items?.length > 0 && (
+                                            <div className="matched-resources-tags">
+                                              <span className="items-label">Solicitado:</span>
+                                              {need.items.map((item) => (
+                                                <span
+                                                  key={item.id}
+                                                  className={`match-tag ${isNeedItemMatched(item) ? 'matched' : 'unmatched'}`}
+                                                >
+                                                  {formatNeedItemLabel(item)}
+                                                  {isNeedItemMatched(item) ? ' ✓' : ' ⏳'}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                                            Prioridad: {need.urgencyScore}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {nearbyNeeds.length === 0 && (
+                                        <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
+                                      )}
+                                    </div>
+                                  </CollapsiblePanel>
+                                </>
+                              )}
+                            </div>
+
+                            {/* ACTIVE OFFER PROPOSAL */}
+                            {activeProposal && (
+                              <div className="proposal-card glass-card active-glow">
+                                <div className="proposal-pulse-header">
+                                  <h4>🚨 ¡DESPACHO PROPUESTO!</h4>
+                                  <span className="countdown-timer">{proposalCountdown}s</span>
+                                </div>
+                                <p className="proposal-desc">{activeProposal.description}</p>
+                                {activeProposal.origin && (
+                                  <div className="proposal-route">
+                                    <p><strong>📍 Origen (recoger):</strong> {activeProposal.origin.label}</p>
+                                    {activeProposal.destination && (
+                                      <p><strong>🏁 Destino (entregar):</strong> {activeProposal.destination.label}</p>
+                                    )}
+                                  </div>
+                                )}
+                                {activeProposal.matchedItems?.length > 0 && (
+                                  <div className="proposal-matches">
+                                    <strong>Recursos emparejados:</strong>
+                                    <ul>
+                                      {activeProposal.matchedItems.map((item, idx) => (
+                                        <li key={idx}>
+                                          {item.quantity}x {item.requested} → {item.offer}
+                                          {item.pickupLabel && ` @ ${item.pickupLabel}`}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                <div className="proposal-actions">
+                                  <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
+                                  <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* ACTIVE TRANSIT TASK */}
+                            {activeTask && (
+                              <div className="active-task-card glass-card">
+                                <h4>📦 Entrega en Progreso</h4>
+                                <div className="task-details">
+                                  <p>ID: <code>{activeTask.id}</code></p>
+                                  <p>Ubicación GPS: {driverLat != null ? driverLat.toFixed(4) : '—'}, {driverLng != null ? driverLng.toFixed(4) : '—'}</p>
+                                  {activeTask.pickupLatitude && activeTask.pickupLongitude && (
+                                    <p><strong>Origen:</strong> {activeTask.pickupLabel || 'Punto de recogida'}</p>
+                                  )}
+                                  {activeTask.need && (
+                                    <div className="maps-navigation-box">
+                                      {driverLat != null && driverLng != null && activeTask.pickupLatitude && activeTask.need.latitude && (
+                                        <a
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="google-maps-btn"
+                                        >
+                                          🗺️ Ruta: Recoger en Origen → Entregar
+                                        </a>
+                                      )}
+                                      {driverLat != null && driverLng != null && !activeTask.pickupLatitude && activeTask.need.latitude && (
+                                        <a
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="google-maps-btn"
+                                        >
+                                          🗺️ Abrir en Google Maps para Navegar
+                                        </a>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
+                                  <h5>Confirmar Recepción</h5>
+                                  <div className="input-group">
+                                    <label htmlFor="del-signature">Nombre / Cédula Receptor</label>
+                                    <input
+                                      id="del-signature"
+                                      type="text"
+                                      value={deliverySignature}
+                                      onChange={(e) => setDeliverySignature(e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="input-group">
+                                    <label htmlFor="del-photo">URL Foto de Entrega</label>
+                                    <input
+                                      id="del-photo"
+                                      type="text"
+                                      value={deliveryPhoto}
+                                      onChange={(e) => setDeliveryPhoto(e.target.value)}
+                                    />
+                                  </div>
+                                  {deliveryError && <span className="error-message">{deliveryError}</span>}
+                                  {deliveryMessage && <span className="success-message">{deliveryMessage}</span>}
+                                  <button type="submit" className="confirm-btn">Confirmar Entrega</button>
+                                </form>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Conductor Requerido</h3>
+                            <p>Inicie sesión con su cuenta de Conductor para conectarse y administrar entregas.</p>
+                            {!currentUser && renderLoginForm()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ADMINISTRATOR SIMULATOR TAB */}
+                    {activeTab === 'admin' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('ADMIN') ? (
+                          <div className="admin-panel">
+                            <CollapsiblePanel
+                              className="admin-drivers-section glass-card"
+                              title="Vetting de Conductores"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('admin-pending-drivers')}
+                              onToggle={() => togglePanelCollapse('admin-pending-drivers')}
+                            >
+                              {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
+                              <div className="drivers-approval-list">
+                                {pendingDrivers.map((driver) => (
+                                  <div key={driver.id} className="driver-approval-row">
+                                    <div className="driver-info">
+                                      <span className="driver-name">{driver.name}</span>
+                                      <span className="driver-sub">Cédula: {driver.driverDetails.cedula}</span>
+                                      <span className="driver-sub">
+                                        {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
+                                      </span>
+                                      <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
+                                    </div>
+                                    <button onClick={() => handleApproveDriver(driver.id)} className="approve-btn">Aprobar</button>
+                                  </div>
+                                ))}
+                                {pendingDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores pendientes.</p>}
+                              </div>
+                            </CollapsiblePanel>
+
+                            <CollapsiblePanel
+                              className="admin-fleet-section glass-card margin-top"
+                              title="Flota Verificada"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('admin-fleet')}
+                              onToggle={() => togglePanelCollapse('admin-fleet')}
+                            >
+                              <p className="fleet-hint">Conductores aprobados y tipos de vehículo disponibles en la red.</p>
+                              <div className="fleet-list">
+                                {fleetDrivers.map((driver) => (
+                                  <div key={driver.id} className="fleet-row">
+                                    <div className="fleet-driver-info">
+                                      <span className="driver-name">{driver.name}</span>
+                                      <span className="driver-sub">
+                                        {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
+                                      </span>
+                                      <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
+                                    </div>
+                                    <span className={`fleet-status-badge ${driver.available ? 'online' : 'offline'}`}>
+                                      {driver.available ? 'Disponible' : 'No disponible'}
+                                    </span>
+                                  </div>
+                                ))}
+                                {fleetDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores verificados en la flota.</p>}
+                              </div>
+                            </CollapsiblePanel>
+
+                            <CollapsiblePanel
+                              className="admin-matching-section glass-card margin-top"
+                              title="Emparejamiento Manual"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('admin-matching')}
+                              onToggle={() => togglePanelCollapse('admin-matching')}
+                            >
+                              <div className="matching-controls-list">
+                                {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
+                                  <div key={need.id} className="matching-row">
+                                    <div className="matching-info">
+                                      <span className="need-title">{need.description}</span>
+                                      <span className="need-sub">
+                                        Origen: {need.originLabel || `${need.state} - ${need.sector}`}
+                                      </span>
+                                      {need.items?.length > 0 && (
+                                        <span className="need-sub">
+                                          Solicitado: {need.items.map((item) => formatNeedItemLabel(item)).join(' · ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
+                                  </div>
+                                ))}
+                                {needsQueue.filter(n => n.status === 'PENDING').length === 0 && <p className="no-matching-msg">No hay solicitudes pendientes.</p>}
+                              </div>
+                            </CollapsiblePanel>
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Administrador Requerido</h3>
+                            <p>Inicie sesión con cuenta de Administrador para realizar vetting.</p>
+                            {!currentUser && renderLoginForm()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TEAMS MANAGEMENT TAB */}
+                    {activeTab === 'equipos' && (
+                      <div className="tab-pane-content">
+                        {currentUser ? (
+                          <div className="teams-dashboard">
+                            {myTeam && myTeam.inTeam ? (
+                              <div className="glass-card">
+                                <div className="welcome-badge">Mi Equipo: {myTeam.team.name}</div>
+                                {myTeam.team.description && (
+                                  <p className="team-description">{myTeam.team.description}</p>
+                                )}
+                                <p className="profile-setting-hint team-sharing-hint">
+                                  Compartir ubicación con el equipo: configuración en ⚙️ Perfil.
+                                </p>
+
+                                <CollapsiblePanel
+                                  className="nested"
+                                  title="Miembros del Equipo"
+                                  headingLevel="h4"
+                                  collapsed={isPanelCollapsed('team-members')}
+                                  onToggle={() => togglePanelCollapse('team-members')}
+                                >
+                                  <div className="team-members-list">
+                                    {myTeam.team.members.map((member) => (
+                                      <div key={member.id} className="team-member-row">
+                                        <div className="member-meta">
+                                          <span className="member-name">
+                                            {member.name} {member.id === currentUser.id ? '(Tú)' : ''}
+                                          </span>
+                                          <span className="member-roles">{member.roles.split(',').join(', ')}</span>
+                                        </div>
+                                        <div className="member-location-status">
+                                          {member.shareLocationWithTeam ? (
+                                            member.location ? (
+                                              <span className="location-active-badge">
+                                                🟢 En vivo: {member.location.latitude.toFixed(4)}, {member.location.longitude.toFixed(4)}
+                                              </span>
+                                            ) : (
+                                              <span className="location-pending-badge">🟡 Esperando GPS</span>
+                                            )
+                                          ) : (
+                                            <span className="location-inactive-badge">🔴 Sin compartir</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CollapsiblePanel>
+
+                                <button onClick={handleLeaveTeam} className="leave-team-btn">
+                                  Salir del Equipo
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="teams-setup">
+                                <div className="glass-card">
+                                  <h4>Crear un Equipo Nuevo</h4>
+                                  <form onSubmit={handleCreateTeam} className="create-team-form">
+                                    <div className="input-group">
+                                      <label htmlFor="team-name">Nombre del Equipo *</label>
+                                      <input
+                                        id="team-name"
+                                        type="text"
+                                        placeholder="Ej. Unidad de Rescate Caracas"
+                                        value={teamName}
+                                        onChange={(e) => setTeamName(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+                                    <div className="input-group">
+                                      <label htmlFor="team-desc">Descripción</label>
+                                      <input
+                                        id="team-desc"
+                                        type="text"
+                                        placeholder="Ej. Grupo de conductores voluntarios."
+                                        value={teamDesc}
+                                        onChange={(e) => setTeamDesc(e.target.value)}
+                                      />
+                                    </div>
+                                    <button type="submit" className="confirm-btn">Crear Equipo</button>
+                                  </form>
+                                </div>
+
+                                <CollapsiblePanel
+                                  className="margin-top"
+                                  title="Unirse a un Equipo Existente"
+                                  headingLevel="h4"
+                                  collapsed={isPanelCollapsed('available-teams')}
+                                  onToggle={() => togglePanelCollapse('available-teams')}
+                                >
+                                  <div className="available-teams-list">
+                                    {availableTeams.map((team) => (
+                                      <div key={team.id} className="available-team-row">
+                                        <div className="team-info">
+                                          <span className="available-team-name">{team.name}</span>
+                                          {team.description && (
+                                            <span className="available-team-desc">{team.description}</span>
+                                          )}
+                                          <span className="team-creator">Creado por: {team.creator.name}</span>
+                                        </div>
+                                        <button
+                                          onClick={() => handleJoinTeam(team.id)}
+                                          className="join-team-btn"
+                                        >
+                                          Unirse
+                                        </button>
+                                      </div>
+                                    ))}
+                                    {availableTeams.length === 0 && (
+                                      <p className="no-teams-msg">No hay equipos disponibles.</p>
+                                    )}
+                                  </div>
+                                </CollapsiblePanel>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Requerido</h3>
+                            <p>Inicie sesión con su cuenta para crear o unirse a un equipo.</p>
+                            {renderLoginForm()}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   </>
                 )}
@@ -2362,8 +2339,8 @@ export default function Home() {
               <div className={`column-panel right-panel animate-slide-up ${rightMinimized ? 'minimized' : ''}`}>
                 <div className="panel-header-minimize">
                   <span>{rightMinimized ? '📊 Resumen General' : ''}</span>
-                  <button 
-                    className="minimize-panel-btn" 
+                  <button
+                    className="minimize-panel-btn"
                     onClick={() => setRightMinimized(!rightMinimized)}
                     title={rightMinimized ? "Maximizar Panel" : "Minimizar Panel"}
                   >
@@ -2373,72 +2350,72 @@ export default function Home() {
 
                 {!rightMinimized && (
                   <>
-                
-                {/* NEEDS PRIORITY QUEUE */}
-                <CollapsiblePanel
-                  className="status-panel glass-card"
-                  title="Cola de Urgencias"
-                  collapsed={isPanelCollapsed('urgency-queue')}
-                  onToggle={() => togglePanelCollapse('urgency-queue')}
-                  onRefresh={refreshNeeds}
-                >
-                  <div className="needs-list">
-                    {needsQueue.map((need) => {
-                      const isHigh = need.urgencyScore >= 80;
-                      return (
-                        <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
-                          <div className="need-card-header">
-                            <span className="need-location">{need.state} - {need.sector}</span>
-                            <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
-                              {isHigh ? 'INMEDIATO' : `Prioridad: ${need.urgencyScore}`}
-                            </span>
-                          </div>
-                          <p className="need-card-desc">{need.description}</p>
-                          {need.items?.length > 0 && (
-                            <div className="need-card-items">
-                              {need.items.map((item) => (
-                                <span
-                                  key={item.id}
-                                  className={`need-item-chip ${isNeedItemMatched(item) ? 'matched' : 'pending'}`}
-                                >
-                                  {formatNeedItemLabel(item)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="need-card-footer">
-                            <span className={`status-badge-need ${need.status}`}>
-                              {need.status === 'PENDING' ? 'Pendiente' : 
-                               need.status === 'ALLOCATED' ? 'Asignada' : 'Entregado'}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {needsQueue.length === 0 && <p className="empty-panel-msg">No hay solicitudes.</p>}
-                  </div>
-                </CollapsiblePanel>
 
-                <CollapsiblePanel
-                  className="status-panel glass-card margin-top"
-                  title="Inventario Disponible"
-                  collapsed={isPanelCollapsed('available-inventory')}
-                  onToggle={() => togglePanelCollapse('available-inventory')}
-                  onRefresh={refreshResources}
-                >
-                  <div className="resources-list-box">
-                    {resourcesList.map((res) => (
-                      <div key={res.id} className="resource-row">
-                        <div className="resource-meta">
-                          <span className="res-row-name">{res.name}</span>
-                          <span className="res-row-category">{res.category}</span>
-                        </div>
-                        <span className="res-row-qty">{res.stockQuantity} un.</span>
+                    {/* NEEDS PRIORITY QUEUE */}
+                    <CollapsiblePanel
+                      className="status-panel glass-card"
+                      title="Cola de Urgencias"
+                      collapsed={isPanelCollapsed('urgency-queue')}
+                      onToggle={() => togglePanelCollapse('urgency-queue')}
+                      onRefresh={refreshNeeds}
+                    >
+                      <div className="needs-list">
+                        {needsQueue.map((need) => {
+                          const isHigh = need.urgencyScore >= 80;
+                          return (
+                            <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
+                              <div className="need-card-header">
+                                <span className="need-location">{need.state} - {need.sector}</span>
+                                <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
+                                  {isHigh ? 'INMEDIATO' : `Prioridad: ${need.urgencyScore}`}
+                                </span>
+                              </div>
+                              <p className="need-card-desc">{need.description}</p>
+                              {need.items?.length > 0 && (
+                                <div className="need-card-items">
+                                  {need.items.map((item) => (
+                                    <span
+                                      key={item.id}
+                                      className={`need-item-chip ${isNeedItemMatched(item) ? 'matched' : 'pending'}`}
+                                    >
+                                      {formatNeedItemLabel(item)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="need-card-footer">
+                                <span className={`status-badge-need ${need.status}`}>
+                                  {need.status === 'PENDING' ? 'Pendiente' :
+                                    need.status === 'ALLOCATED' ? 'Asignada' : 'Entregado'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {needsQueue.length === 0 && <p className="empty-panel-msg">No hay solicitudes.</p>}
                       </div>
-                    ))}
-                    {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
-                  </div>
-                </CollapsiblePanel>
+                    </CollapsiblePanel>
+
+                    <CollapsiblePanel
+                      className="status-panel glass-card margin-top"
+                      title="Inventario Disponible"
+                      collapsed={isPanelCollapsed('available-inventory')}
+                      onToggle={() => togglePanelCollapse('available-inventory')}
+                      onRefresh={refreshResources}
+                    >
+                      <div className="resources-list-box">
+                        {resourcesList.map((res) => (
+                          <div key={res.id} className="resource-row">
+                            <div className="resource-meta">
+                              <span className="res-row-name">{res.name}</span>
+                              <span className="res-row-category">{res.category}</span>
+                            </div>
+                            <span className="res-row-qty">{res.stockQuantity} un.</span>
+                          </div>
+                        ))}
+                        {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
+                      </div>
+                    </CollapsiblePanel>
                   </>
                 )}
               </div>
@@ -2455,7 +2432,7 @@ export default function Home() {
           <div className="collection-center-modal glass-card animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <h3>Registrar Centro de Acopio</h3>
             <p className="modal-coords">Ubicación elegida: {mapClickLocation.lat.toFixed(5)}, {mapClickLocation.lng.toFixed(5)}</p>
-            
+
             <form onSubmit={handleRegisterCenter}>
               <div className="input-group">
                 <label htmlFor="center-name">Nombre del Centro *</label>
@@ -2692,7 +2669,7 @@ export default function Home() {
         .home-wrapper {
           position: relative;
           width: 100%;
-          height: calc(100vh - 120px);
+          height: calc(100vh - 218px);
           min-height: 720px;
           border-radius: 16px;
           overflow: hidden;
@@ -4310,6 +4287,36 @@ export default function Home() {
           vertical-align: super;
           margin-left: 2px;
         }
+        .submit-btn {
+          width: 100%;
+          background-color: #2563eb;
+          color: #ffffff;
+          border: none;
+          padding: 12px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background-color 0.2s, transform 0.1s;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        .submit-btn:hover:not(:disabled) {
+          background-color: #1d4ed8;
+        }
+        .submit-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+        .submit-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.25s ease-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
     </div>
   );
@@ -4343,17 +4350,12 @@ export default function Home() {
         </div>
 
         {loginError && <span className="error-message">{loginError}</span>}
-        {loginSuccess && <span className="success-message" style={{color: 'var(--success-color)'}}>{loginSuccess}</span>}
+        {loginSuccess && <span className="success-message" style={{ color: 'var(--success-color)' }}>{loginSuccess}</span>}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '10px', justifyContent: 'center' }}>
+          <Button type="submit" >Iniciar Sesión</Button>
+          <Button type="button" onClick={() => setActiveTab('register')} variant="outline">Crear cuenta nueva</Button>
+        </div>
 
-        <button type="submit" className="login-submit-btn">Iniciar Sesión</button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('register')}
-          className="login-submit-btn"
-          style={{backgroundColor: 'transparent', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8'}}
-        >
-          Crear cuenta nueva
-        </button>
       </form>
     );
   }

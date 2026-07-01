@@ -1,8 +1,61 @@
 import '../styles/globals.css';
 import React, { useEffect } from 'react';
 import Head from 'next/head';
-import { AuthProvider } from '../context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
 import { unregisterStaleServiceWorkers } from '../utils/serviceWorkerCleanup';
+
+function AppHeader() {
+  const { user: firebaseUser, dbUser: currentUser, logout } = useAuth();
+
+  const handleProfileClick = () => {
+    window.dispatchEvent(new CustomEvent('open-profile-modal'));
+  };
+
+  const handleLogoutClick = async () => {
+    window.dispatchEvent(new CustomEvent('app:logout'));
+    await logout();
+  };
+
+  return (
+    <header className="app-header glass">
+      <div className="header-container">
+        <div className="logo-section">
+          <span className="logo-icon">🇻🇪</span>
+          <span className="logo-text text-slate-900">Venezuela <span className="text-blue-600">Reporta</span></span>
+        </div>
+        <div className="flex gap-4">
+          <div className="badge-section bg-blue-50 border border-blue-200">
+            <span className="badge-dot bg-blue-600"></span>
+            <span className="badge-text text-blue-700 font-semibold">Coordinación en Tiempo Real</span>
+          </div>
+          {firebaseUser ? (
+            <div className="header-session-info">
+              {currentUser ? (
+                <button
+                  className="profile-btn"
+                  onClick={handleProfileClick}
+                  title="Configurar Perfil"
+                >
+                  {currentUser.selfieUrl ? (
+                    <img src={currentUser.selfieUrl} className="profile-avatar-img" alt="avatar" />
+                  ) : (
+                    <span className="profile-avatar-placeholder">👤</span>
+                  )}
+                  <span className="profile-name-label">{currentUser.name.split(' ')[0]}</span>
+                </button>
+              ) : (
+                <span className="cargando-span">Cargando...</span>
+              )}
+              <button onClick={handleLogoutClick} className="logout-btn">Salir</button>
+            </div>
+          ) : (
+            <span className="guest-badge">Modo Invitado / Observador</span>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
@@ -14,19 +67,8 @@ function MyApp({ Component, pageProps }) {
       <Head>
         <title>AyudaVenezuela - Plataforma de Coordinación de Ayuda</title>
       </Head>
-      
-      <header className="app-header glass">
-        <div className="header-container">
-          <div className="logo-section">
-            <span className="logo-icon">🇻🇪</span>
-            <span className="logo-text text-slate-900">Venezuela <span className="text-blue-600">Reporta</span></span>
-          </div>
-          <div className="badge-section bg-blue-50 border border-blue-200">
-            <span className="badge-dot bg-blue-600"></span>
-            <span className="badge-text text-blue-700 font-semibold">Coordinación en Tiempo Real</span>
-          </div>
-        </div>
-      </header>
+
+      <AppHeader />
 
       <main className="app-content w-full max-w-full px-2 sm:px-4 md:px-8 mx-auto animate-slide-up">
         <Component {...pageProps} />
@@ -50,7 +92,7 @@ function MyApp({ Component, pageProps }) {
           z-index: 100;
           background: rgba(255, 255, 255, 0.95);
           border-bottom: 1px solid #e2e8f0;
-          margin-bottom: 20px;
+          
           backdrop-filter: blur(12px);
           box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
@@ -102,8 +144,81 @@ function MyApp({ Component, pageProps }) {
         .badge-text {
           font-size: 12px;
         }
+        .header-session-info {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          font-size: 13px;
+          color: #334155;
+          font-weight: 600;
+        }
+        .logout-btn {
+          background-color: #ef4444;
+          color: white;
+          border: none;
+          padding: 6px 14px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 12px;
+          transition: all 0.2s;
+        }
+        .logout-btn:hover {
+          background-color: #dc2626;
+        }
+        .guest-badge {
+          background-color: #eff6ff;
+          border: 1px solid #bfdbfe;
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #1d4ed8;
+        }
+        .profile-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
+          border-radius: 30px;
+          padding: 5px 12px 5px 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: #0f172a;
+        }
+        .profile-btn:hover {
+          background: #f1f5f9;
+          border-color: #3b82f6;
+        }
+        .profile-avatar-img {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid #3b82f6;
+        }
+        .profile-avatar-placeholder {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(59, 130, 246, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          border: 2px solid #3b82f6;
+        }
+        .profile-name-label {
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .cargando-span {
+          font-size: 12px;
+          color: #64748b;
+        }
         .app-content {
-          padding-bottom: 60px;
+          padding: 30px;
           width: 100%;
         }
         .app-footer {
