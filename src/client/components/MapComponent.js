@@ -429,15 +429,14 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
 
       <style jsx global>{`
         .map-wrapper {
-          position: fixed;
+          position: absolute;
           top: 0;
           left: 0;
-          width: 100vw;
-          height: 100vh;
-          padding: 0;
-          margin: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          height: 100%;
           z-index: 1;
-          overflow: hidden;
         }
         .map-wrapper.map-locked {
           pointer-events: none;
@@ -445,17 +444,17 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
 
         .map-instruction-banner {
           position: absolute;
-          top: 100px;
+          top: 24px;
           left: 50%;
           transform: translateX(-50%);
-          background: rgba(249, 115, 22, 0.95);
-          border: 1px solid rgba(249, 115, 22, 0.4);
+          background: rgba(37, 99, 235, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.4);
           color: #ffffff;
           font-size: 13px;
           font-weight: 700;
           padding: 10px 20px;
           border-radius: 30px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
           z-index: 999;
           text-align: center;
           pointer-events: none;
@@ -463,15 +462,16 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
         }
 
         @keyframes slideDownIn {
-          from { top: -50px; opacity: 0; }
-          to { top: 100px; opacity: 1; }
+          from { top: -20px; opacity: 0; }
+          to { top: 24px; opacity: 1; }
         }
 
         .leaflet-map-container {
           width: 100%;
           height: 100%;
+          min-height: 100%;
           z-index: 1;
-          background: #0b0f19;
+          background: #f1f5f9;
         }
 
         /* Glowing Custom Markers */

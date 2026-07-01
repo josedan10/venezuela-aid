@@ -5,6 +5,7 @@ import ResourceCatalogForm from '../components/ResourceCatalogForm';
 import NeedSubmissionForm from '../components/NeedSubmissionForm';
 import CollapsiblePanel from '../components/CollapsiblePanel';
 import dynamic from 'next/dynamic';
+import { Button } from "@/components/ui/button"
 
 const MapComponent = dynamic(() => import('../components/MapComponent'), { ssr: false });
 import { initSocket, sendLocation, disconnectSocket, syncBufferedCoordinates } from '../utils/socket';
@@ -496,6 +497,17 @@ export default function Home() {
     setActiveTab('mapa_publico');
   };
 
+  useEffect(() => {
+    const handleOpenProfile = () => setShowProfileModal(true);
+    const handleAppLogout = () => handleLogout();
+    window.addEventListener('open-profile-modal', handleOpenProfile);
+    window.addEventListener('app:logout', handleAppLogout);
+    return () => {
+      window.removeEventListener('open-profile-modal', handleOpenProfile);
+      window.removeEventListener('app:logout', handleAppLogout);
+    };
+  }, [handleLogout]);
+
   const fetchMyTeamDetails = async () => {
     if (!authToken) return;
     try {
@@ -838,7 +850,7 @@ export default function Home() {
 
   const handleAcceptProposal = async () => {
     if (!activeProposal || !currentUser) return;
-    
+
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/dispatch/accept`, {
         method: 'POST',
@@ -859,7 +871,7 @@ export default function Home() {
 
       setActiveTask(data.task);
       setActiveProposal(null);
-      
+
       startGPSTracking();
       refreshNeeds();
     } catch (err) {
@@ -933,14 +945,14 @@ export default function Home() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      
+
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg');
       setSelfieCaptureUrl(dataUrl);
-      
+
       // Detener flujo de cámara
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -1223,7 +1235,7 @@ export default function Home() {
   };
 
   const handleServiceCheckbox = (service) => {
-    setCenterServices(prev => 
+    setCenterServices(prev =>
       prev.includes(service) ? prev.filter(s => s !== service) : [...prev, service]
     );
   };
@@ -1255,12 +1267,12 @@ export default function Home() {
             align-items: center;
             justify-content: center;
             height: 100vh;
-            color: white;
+            color: #0f172a;
             font-family: system-ui, sans-serif;
-            background: #0b0f19;
+            background: #f8fafc;
           }
           .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.1);
+            border: 4px solid #e2e8f0;
             width: 36px;
             height: 36px;
             border-radius: 50%;
@@ -1289,17 +1301,17 @@ export default function Home() {
             <span className="selfie-badge-icon">📸</span>
             <h2>Verificación de Identidad Requerida</h2>
             <p className="selfie-instructions">
-              Para comenzar a operar en <strong>AyudaVenezuela</strong>, debes tomarte una selfie en vivo utilizando tu cámara. 
+              Para comenzar a operar en <strong>AyudaVenezuela</strong>, debes tomarte una selfie en vivo utilizando tu cámara.
               Esto nos permite garantizar que todos los colaboradores sean personas reales.
             </p>
-            
+
             <div className="camera-viewport-container">
               {selfieCaptureUrl ? (
                 <img src={selfieCaptureUrl} className="selfie-preview-img" alt="Selfie Capturada" />
               ) : (
                 <video ref={videoRef} autoPlay playsInline className="selfie-video-preview"></video>
               )}
-              
+
               {!cameraActive && !selfieCaptureUrl && (
                 <div className="camera-placeholder">
                   <span>Cámara inactiva</span>
@@ -1335,7 +1347,7 @@ export default function Home() {
                 </>
               )}
             </div>
-            
+
             <button onClick={handleLogout} className="selfie-logout-btn">Cerrar Sesión</button>
           </div>
         </div>
@@ -1346,7 +1358,7 @@ export default function Home() {
             justify-content: center;
             width: 100vw;
             height: 100vh;
-            background: rgba(11, 15, 25, 0.9);
+            background: #f8fafc;
             box-sizing: border-box;
             padding: 20px;
           }
@@ -1358,10 +1370,10 @@ export default function Home() {
             align-items: center;
             text-align: center;
             padding: 30px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
             border-radius: 20px;
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
           }
           .selfie-badge-icon {
             font-size: 40px;
@@ -1369,13 +1381,13 @@ export default function Home() {
           }
           .selfie-card h2 {
             font-size: 20px;
-            color: #f8fafc;
+            color: #0f172a;
             margin: 0 0 10px 0;
             font-weight: 700;
           }
           .selfie-instructions {
             font-size: 13px;
-            color: #cbd5e1;
+            color: #475569;
             line-height: 1.5;
             margin-bottom: 20px;
           }
@@ -1442,17 +1454,18 @@ export default function Home() {
             animation: pulse-red 1.5s infinite;
           }
           .selfie-action-btn.secondary {
-            background-color: rgba(255, 255, 255, 0.08);
-            color: #cbd5e1;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
           }
           .selfie-action-btn.secondary:hover {
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: #e2e8f0;
+            color: #0f172a;
           }
           .selfie-logout-btn {
             background: none;
             border: none;
-            color: #94a3b8;
+            color: #64748b;
             font-size: 12px;
             cursor: pointer;
             transition: color 0.2s;
@@ -1460,7 +1473,7 @@ export default function Home() {
             text-decoration: underline;
           }
           .selfie-logout-btn:hover {
-            color: #f8fafc;
+            color: #0f172a;
           }
           @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
@@ -1495,7 +1508,7 @@ export default function Home() {
 
       {/* FLOATING ACTION OVERLAY CONTROLLER */}
       <div className="floating-ui-container">
-        
+
         {/* Bottom controls — minimal map chrome */}
         <div className="bottom-controls-bar glass animate-fade-in">
           <button
@@ -1519,51 +1532,16 @@ export default function Home() {
 
         {showPanels && (
           <div className="panels-layout-wrapper">
-            
-            {/* FLOATING HEADER: Brand Logo and Login/Logout status */}
-            <div className="floating-header glass animate-fade-in">
-              <div className="brand-box">
-                <span className="brand-logo">🇻🇪</span>
-                <div className="brand-text">
-                  <h2>AyudaVenezuela</h2>
-                  <p>Coordinación Humanitaria de Emergencia</p>
-                </div>
-              </div>
-              
-              {firebaseUser ? (
-                <div className="header-session-info">
-                  {currentUser ? (
-                    <button
-                      className="profile-btn"
-                      onClick={() => setShowProfileModal(true)}
-                      title="Configurar Perfil"
-                    >
-                      {currentUser.selfieUrl ? (
-                        <img src={currentUser.selfieUrl} className="profile-avatar-img" alt="avatar" />
-                      ) : (
-                        <span className="profile-avatar-placeholder">👤</span>
-                      )}
-                      <span className="profile-name-label">{currentUser.name.split(' ')[0]}</span>
-                    </button>
-                  ) : (
-                    <span>Cargando...</span>
-                  )}
-                  <button onClick={handleLogout} className="logout-btn">Salir</button>
-                </div>
-              ) : (
-                <span className="guest-badge">Modo Invitado / Observador</span>
-              )}
-            </div>
 
             {/* TWO FLOATING COLUMNS OVER THE MAP */}
             <div className="floating-body-columns">
-              
+
               {/* LEFT COLUMN: Navigation & Dynamic tab forms */}
               <div className={`column-panel left-panel animate-slide-up ${leftMinimized ? 'minimized' : ''}`}>
                 <div className="panel-header-minimize">
                   <span>{leftMinimized ? '📁 Panel de Control' : ''}</span>
-                  <button 
-                    className="minimize-panel-btn" 
+                  <button
+                    className="minimize-panel-btn"
                     onClick={() => setLeftMinimized(!leftMinimized)}
                     title={leftMinimized ? "Maximizar Panel" : "Minimizar Panel"}
                   >
@@ -1592,7 +1570,7 @@ export default function Home() {
                           )}
                           <p className="point-desc"><strong>Descripción:</strong> {selectedPoint.data.description}</p>
                           <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
-                          
+
                           {currentUser && userRoles.includes('NGO') && (
                             <button
                               onClick={() => {
@@ -1705,653 +1683,653 @@ export default function Home() {
                           Equipos {myTeam && !myTeam.inTeam && <span className="tab-dot">●</span>}
                         </button>
                       )}
-                      {!currentUser && (
-                        <button
-                          onClick={() => setActiveTab('register')}
-                          className={activeTab === 'register' ? 'tab-btn register-tab active' : 'tab-btn register-tab'}
-                        >
-                          Registrarse
-                        </button>
-                      )}
+                      {/* {!currentUser && (
+                        // <button
+                        //   onClick={() => setActiveTab('register')}
+                        //   className={activeTab === 'register' ? 'tab-btn register-tab active' : 'tab-btn register-tab'}
+                        // >
+                        //   Registrarse
+                        // </button>
+                      )} */}
                     </div>
 
-                {/* MAP INSTRUCTIONS TAB (LANDING VIEW) */}
-                {activeTab === 'mapa_publico' && (
-                  <div className="tab-pane-content glass-card">
-                    <div className="welcome-badge">Panel Informativo</div>
-                    <p className="panel-text">
-                      Estás visualizando el mapa nacional de ayuda en tiempo real.
-                    </p>
-                    <div className="legend-box">
-                      <div className="legend-item"><span className="dot red"></span><span>Emergencia Inmediata</span></div>
-                      <div className="legend-item"><span className="dot blue"></span><span>Necesidad Normal</span></div>
-                      <div className="legend-item"><span className="dot orange"></span><span>Centro de Acopio (🏠)</span></div>
-                      <div className="legend-item"><span className="dot cyan"></span><span>Mi Ubicación Actual (👤)</span></div>
-                    </div>
-
-                    <button
-                      className={`register-center-trigger-btn ${isSelectingLocation ? 'active' : ''}`}
-                      onClick={() => setIsSelectingLocation(!isSelectingLocation)}
-                    >
-                      {isSelectingLocation ? '✕ Cancelar Registro' : '📍 Registrar Centro de Acopio'}
-                    </button>
-
-                    <p className="panel-text-small text-orange" style={{ marginTop: '12px' }}>
-                      {isSelectingLocation 
-                        ? '👉 Ahora haz clic sobre cualquier punto del mapa para ubicar el centro.' 
-                        : '💡 Presiona el botón de arriba y luego haz clic en el mapa para registrar un nuevo centro de acopio.'}
-                    </p>
-                  </div>
-                )}
-
-                {/* REGISTER TAB */}
-                {activeTab === 'register' && !currentUser && (
-                  <RegisterForm onRegisterSuccess={() => {}} />
-                )}
-
-                {/* DONOR DASHBOARD */}
-                {activeTab === 'donor' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('DONOR') ? (
-                      <div className="glass-card">
-                        <div className="welcome-badge">Aportar Recursos</div>
-                        <ResourceCatalogForm
-                          token={authToken}
-                          collectionCenters={collectionCentersList}
-                          onResourceCataloged={refreshResources}
-                        />
-
-                        <CollapsiblePanel
-                          className="status-panel glass-card margin-top donor-resources-panel"
-                          title="Recursos Catalogados"
-                          collapsed={isPanelCollapsed('donor-resources')}
-                          onToggle={() => togglePanelCollapse('donor-resources')}
-                          onRefresh={refreshResources}
-                        >
-                          <div className="resources-list-box">
-                            {resourcesList.map((res) => (
-                              <div
-                                key={res.id}
-                                className={`resource-row ${res.donorId === currentUser.id ? 'own-resource' : ''}`}
-                              >
-                                <div className="resource-meta">
-                                  <span className="res-row-name">
-                                    {res.name}
-                                    {res.donorId === currentUser.id && (
-                                      <span className="own-resource-badge">Tuyo</span>
-                                    )}
-                                  </span>
-                                  <span className="res-row-category">{res.category}</span>
-                                  {res.collectionCenter && (
-                                    <span className="res-row-location">@ {res.collectionCenter.name}</span>
-                                  )}
-                                  {res.donor && res.donorId !== currentUser.id && (
-                                    <span className="res-row-location">Donante: {res.donor.name}</span>
-                                  )}
-                                </div>
-                                <span className="res-row-qty">{res.stockQuantity} un.</span>
-                              </div>
-                            ))}
-                            {resourcesList.length === 0 && (
-                              <p className="empty-panel-msg">Aún no hay recursos en el inventario.</p>
-                            )}
-                          </div>
-                        </CollapsiblePanel>
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Limitado a Donantes</h3>
-                        <p>Inicie sesión con su cuenta de Donante para catalogar y registrar aportes.</p>
-                        {!currentUser && renderLoginForm()}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* NGO DASHBOARD */}
-                {activeTab === 'ngo' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('NGO') ? (
-                      <div className="glass-card">
-                        <div className="welcome-badge">Solicitar Insumos</div>
-                        <NeedSubmissionForm
-                          token={authToken}
-                          ngoId={currentUser?.id}
-                          prefill={needPrefill}
-                          onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Limitado a ONGs</h3>
-                        <p>Inicie sesión con su cuenta de ONG / Beneficiario para crear solicitudes de insumos.</p>
-                        {!currentUser && renderLoginForm()}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* DRIVER DASHBOARD */}
-                {activeTab === 'driver' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('DRIVER') ? (
-                      <div className="driver-dashboard-grid">
-                        
-                        {/* Account state banner */}
-                        <div className="driver-status-card glass-card">
-                          <div className="driver-header">
-                            <h3>Mi Perfil de Conductor</h3>
-                            {currentUser.driverDetails ? (
-                              <span className={`status-badge ${currentUser.driverDetails.status}`}>
-                                {currentUser.driverDetails.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'}
-                              </span>
-                            ) : (
-                              <span className="status-badge PENDING_APPROVAL">Incompleto</span>
-                            )}
-                          </div>
-
-                          {!currentUser.driverDetails ? (
-                            <div className="complete-profile-form-box">
-                              <div className="alert alert-warning">
-                                Completa tus datos de vehículo y placa para poder conectarte y recibir asignaciones.
-                              </div>
-
-                              <form onSubmit={handleCompleteDriverProfile} className="complete-profile-form">
-                                <div className="input-group">
-                                  <label htmlFor="drv-cedula">Cédula de Identidad *</label>
-                                  <input
-                                    id="drv-cedula"
-                                    type="text"
-                                    placeholder="Ej. V-12345678"
-                                    value={driverCedula}
-                                    onChange={(e) => setDriverCedula(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-category">Tipo de Vehículo *</label>
-                                  <select
-                                    id="drv-category"
-                                    value={driverVehicleCategory}
-                                    onChange={(e) => {
-                                      const next = e.target.value;
-                                      setDriverVehicleCategory(next);
-                                      const preset = VEHICLE_CATEGORIES.find((c) => c.value === next);
-                                      if (preset) setDriverSeatCount(String(preset.defaultSeats));
-                                    }}
-                                    required
-                                  >
-                                    <option value="">Seleccione categoría</option>
-                                    {VEHICLE_CATEGORIES.map((cat) => (
-                                      <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-seats">Número de Asientos *</label>
-                                  <input
-                                    id="drv-seats"
-                                    type="number"
-                                    min="1"
-                                    max="60"
-                                    placeholder="Ej. 5"
-                                    value={driverSeatCount}
-                                    onChange={(e) => setDriverSeatCount(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-vehicle">Marca / Modelo / Color *</label>
-                                  <input
-                                    id="drv-vehicle"
-                                    type="text"
-                                    placeholder="Ej. Toyota Hilux Blanco"
-                                    value={driverVehicle}
-                                    onChange={(e) => setDriverVehicle(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                <div className="input-group">
-                                  <label htmlFor="drv-plate">Placa del Vehículo *</label>
-                                  <input
-                                    id="drv-plate"
-                                    type="text"
-                                    placeholder="Ej. AA123BB"
-                                    value={driverPlate}
-                                    onChange={(e) => setDriverPlate(e.target.value)}
-                                    required
-                                  />
-                                </div>
-
-                                {driverProfileError && <span className="error-message">{driverProfileError}</span>}
-                                {driverProfileMessage && <span className="success-message">{driverProfileMessage}</span>}
-
-                                <button type="submit" className="confirm-btn">Enviar Perfil</button>
-                              </form>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="driver-vehicle-summary glass-card">
-                                <h4>🚗 Mi Vehículo</h4>
-                                <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
-                              </div>
-
-                              <div className="availability-toggle-section">
-                                <p>
-                                  <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
-                                    {driverAvailable ? 'DISPONIBLE PARA DESPACHOS' : 'NO DISPONIBLE'}
-                                  </strong>
-                                </p>
-                                <button
-                                  onClick={toggleAvailability}
-                                  className={`toggle-btn ${driverAvailable ? 'online' : 'offline'}`}
-                                >
-                                  {driverAvailable ? 'Desconectarse' : 'Conectarse (Disponible)'}
-                                </button>
-                              </div>
-                              {driverStatusMessage && <div className="status-msg">{driverStatusMessage}</div>}
-
-                              {/* Network Loss Simulator */}
-                              <div className="network-simulator-card">
-                                <div className="network-sim-header">
-                                  <span>Simulador Fuera de Línea</span>
-                                  <span className={`network-status ${offlineSimulation ? 'offline' : 'online'}`}>
-                                    {offlineSimulation ? '🔴 SIN SEÑAL' : '🟢 CON SEÑAL'}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={toggleOfflineSimulation}
-                                  className={`network-toggle-btn ${offlineSimulation ? 'reconnect' : 'disconnect'}`}
-                                >
-                                  {offlineSimulation ? 'Sincronizar Coordenadas' : 'Simular Corte de Señal'}
-                                </button>
-                                {offlineCount > 0 && (
-                                  <div className="offline-buffer-badge">
-                                    ⚠️ {offlineCount} coordenadas en cola local esperando señal...
-                                  </div>
-                                )}
-                              </div>
-
-                              <CollapsiblePanel
-                                className="nearby-needs-card glass-card"
-                                title={`🔔 Alertas Cercanas (${driverRadius} km)`}
-                                headingLevel="h4"
-                                collapsed={isPanelCollapsed('driver-nearby-needs')}
-                                onToggle={() => togglePanelCollapse('driver-nearby-needs')}
-                              >
-                                <p className="nearby-hint">Priorizadas por proximidad al punto de origen (donde están las personas).</p>
-                                <div className="nearby-needs-list">
-                                  {nearbyNeeds.map((need) => (
-                                    <div key={need.id} className="nearby-need-row">
-                                      <div className="need-meta">
-                                        <span className="need-location">
-                                          {need.originLabel || `${need.state} - ${need.sector}`}
-                                        </span>
-                                        <span className="need-distance">{need.distanceKm?.toFixed(1)} km</span>
-                                      </div>
-                                      <p className="need-desc-text">{need.description}</p>
-                                      {need.items?.length > 0 && (
-                                        <div className="matched-resources-tags">
-                                          <span className="items-label">Solicitado:</span>
-                                          {need.items.map((item) => (
-                                            <span
-                                              key={item.id}
-                                              className={`match-tag ${isNeedItemMatched(item) ? 'matched' : 'unmatched'}`}
-                                            >
-                                              {formatNeedItemLabel(item)}
-                                              {isNeedItemMatched(item) ? ' ✓' : ' ⏳'}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      )}
-                                      <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                                        Prioridad: {need.urgencyScore}
-                                      </span>
-                                    </div>
-                                  ))}
-                                  {nearbyNeeds.length === 0 && (
-                                    <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
-                                  )}
-                                </div>
-                              </CollapsiblePanel>
-                            </>
-                          )}
+                    {/* MAP INSTRUCTIONS TAB (LANDING VIEW) */}
+                    {activeTab === 'mapa_publico' && (
+                      <div className="tab-pane-content glass-card">
+                        <div className="welcome-badge">Panel Informativo</div>
+                        <p className="panel-text">
+                          Estás visualizando el mapa nacional de ayuda en tiempo real.
+                        </p>
+                        <div className="legend-box">
+                          <div className="legend-item"><span className="dot red"></span><span>Emergencia Inmediata</span></div>
+                          <div className="legend-item"><span className="dot blue"></span><span>Necesidad Normal</span></div>
+                          <div className="legend-item"><span className="dot orange"></span><span>Centro de Acopio (🏠)</span></div>
+                          <div className="legend-item"><span className="dot cyan"></span><span>Mi Ubicación Actual (👤)</span></div>
                         </div>
 
-                        {/* ACTIVE OFFER PROPOSAL */}
-                        {activeProposal && (
-                          <div className="proposal-card glass-card active-glow">
-                            <div className="proposal-pulse-header">
-                              <h4>🚨 ¡DESPACHO PROPUESTO!</h4>
-                              <span className="countdown-timer">{proposalCountdown}s</span>
-                            </div>
-                            <p className="proposal-desc">{activeProposal.description}</p>
-                            {activeProposal.origin && (
-                              <div className="proposal-route">
-                                <p><strong>📍 Origen (recoger):</strong> {activeProposal.origin.label}</p>
-                                {activeProposal.destination && (
-                                  <p><strong>🏁 Destino (entregar):</strong> {activeProposal.destination.label}</p>
-                                )}
-                              </div>
-                            )}
-                            {activeProposal.matchedItems?.length > 0 && (
-                              <div className="proposal-matches">
-                                <strong>Recursos emparejados:</strong>
-                                <ul>
-                                  {activeProposal.matchedItems.map((item, idx) => (
-                                    <li key={idx}>
-                                      {item.quantity}x {item.requested} → {item.offer}
-                                      {item.pickupLabel && ` @ ${item.pickupLabel}`}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            <div className="proposal-actions">
-                              <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
-                              <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
-                            </div>
-                          </div>
-                        )}
+                        <button
+                          className={`register-center-trigger-btn ${isSelectingLocation ? 'active' : ''}`}
+                          onClick={() => setIsSelectingLocation(!isSelectingLocation)}
+                        >
+                          {isSelectingLocation ? '✕ Cancelar Registro' : '📍 Registrar Centro de Acopio'}
+                        </button>
 
-                        {/* ACTIVE TRANSIT TASK */}
-                        {activeTask && (
-                          <div className="active-task-card glass-card">
-                            <h4>📦 Entrega en Progreso</h4>
-                            <div className="task-details">
-                              <p>ID: <code>{activeTask.id}</code></p>
-                              <p>Ubicación GPS: {driverLat != null ? driverLat.toFixed(4) : '—'}, {driverLng != null ? driverLng.toFixed(4) : '—'}</p>
-                              {activeTask.pickupLatitude && activeTask.pickupLongitude && (
-                                <p><strong>Origen:</strong> {activeTask.pickupLabel || 'Punto de recogida'}</p>
-                              )}
-                              {activeTask.need && (
-                                <div className="maps-navigation-box">
-                                  {driverLat != null && driverLng != null && activeTask.pickupLatitude && activeTask.need.latitude && (
-                                    <a
-                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="google-maps-btn"
-                                    >
-                                      🗺️ Ruta: Recoger en Origen → Entregar
-                                    </a>
-                                  )}
-                                  {driverLat != null && driverLng != null && !activeTask.pickupLatitude && activeTask.need.latitude && (
-                                    <a
-                                      href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="google-maps-btn"
-                                    >
-                                      🗺️ Abrir en Google Maps para Navegar
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
-                              <h5>Confirmar Recepción</h5>
-                              <div className="input-group">
-                                <label htmlFor="del-signature">Nombre / Cédula Receptor</label>
-                                <input
-                                  id="del-signature"
-                                  type="text"
-                                  value={deliverySignature}
-                                  onChange={(e) => setDeliverySignature(e.target.value)}
-                                />
-                              </div>
-                              <div className="input-group">
-                                <label htmlFor="del-photo">URL Foto de Entrega</label>
-                                <input
-                                  id="del-photo"
-                                  type="text"
-                                  value={deliveryPhoto}
-                                  onChange={(e) => setDeliveryPhoto(e.target.value)}
-                                />
-                              </div>
-                              {deliveryError && <span className="error-message">{deliveryError}</span>}
-                              {deliveryMessage && <span className="success-message">{deliveryMessage}</span>}
-                              <button type="submit" className="confirm-btn">Confirmar Entrega</button>
-                            </form>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Conductor Requerido</h3>
-                        <p>Inicie sesión con su cuenta de Conductor para conectarse y administrar entregas.</p>
-                        {!currentUser && renderLoginForm()}
+                        <p className="panel-text-small text-orange" style={{ marginTop: '12px' }}>
+                          {isSelectingLocation
+                            ? '👉 Ahora haz clic sobre cualquier punto del mapa para ubicar el centro.'
+                            : '💡 Presiona el botón de arriba y luego haz clic en el mapa para registrar un nuevo centro de acopio.'}
+                        </p>
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* ADMINISTRATOR SIMULATOR TAB */}
-                {activeTab === 'admin' && (
-                  <div className="tab-pane-content">
-                    {currentUser && userRoles.includes('ADMIN') ? (
-                      <div className="admin-panel">
-                        <CollapsiblePanel
-                          className="admin-drivers-section glass-card"
-                          title="Vetting de Conductores"
-                          headingLevel="h4"
-                          collapsed={isPanelCollapsed('admin-pending-drivers')}
-                          onToggle={() => togglePanelCollapse('admin-pending-drivers')}
-                        >
-                          {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
-                          <div className="drivers-approval-list">
-                             {pendingDrivers.map((driver) => (
-                              <div key={driver.id} className="driver-approval-row">
-                                <div className="driver-info">
-                                  <span className="driver-name">{driver.name}</span>
-                                  <span className="driver-sub">Cédula: {driver.driverDetails.cedula}</span>
-                                  <span className="driver-sub">
-                                    {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
-                                  </span>
-                                  <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
-                                </div>
-                                <button onClick={() => handleApproveDriver(driver.id)} className="approve-btn">Aprobar</button>
-                              </div>
-                            ))}
-                            {pendingDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores pendientes.</p>}
-                          </div>
-                        </CollapsiblePanel>
-
-                        <CollapsiblePanel
-                          className="admin-fleet-section glass-card margin-top"
-                          title="Flota Verificada"
-                          headingLevel="h4"
-                          collapsed={isPanelCollapsed('admin-fleet')}
-                          onToggle={() => togglePanelCollapse('admin-fleet')}
-                        >
-                          <p className="fleet-hint">Conductores aprobados y tipos de vehículo disponibles en la red.</p>
-                          <div className="fleet-list">
-                            {fleetDrivers.map((driver) => (
-                              <div key={driver.id} className="fleet-row">
-                                <div className="fleet-driver-info">
-                                  <span className="driver-name">{driver.name}</span>
-                                  <span className="driver-sub">
-                                    {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
-                                  </span>
-                                  <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
-                                </div>
-                                <span className={`fleet-status-badge ${driver.available ? 'online' : 'offline'}`}>
-                                  {driver.available ? 'Disponible' : 'No disponible'}
-                                </span>
-                              </div>
-                            ))}
-                            {fleetDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores verificados en la flota.</p>}
-                          </div>
-                        </CollapsiblePanel>
-
-                        <CollapsiblePanel
-                          className="admin-matching-section glass-card margin-top"
-                          title="Emparejamiento Manual"
-                          headingLevel="h4"
-                          collapsed={isPanelCollapsed('admin-matching')}
-                          onToggle={() => togglePanelCollapse('admin-matching')}
-                        >
-                          <div className="matching-controls-list">
-                            {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
-                              <div key={need.id} className="matching-row">
-                                <div className="matching-info">
-                                  <span className="need-title">{need.description}</span>
-                                  <span className="need-sub">
-                                    Origen: {need.originLabel || `${need.state} - ${need.sector}`}
-                                  </span>
-                                  {need.items?.length > 0 && (
-                                    <span className="need-sub">
-                                      Solicitado: {need.items.map((item) => formatNeedItemLabel(item)).join(' · ')}
-                                    </span>
-                                  )}
-                                </div>
-                                <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
-                              </div>
-                            ))}
-                            {needsQueue.filter(n => n.status === 'PENDING').length === 0 && <p className="no-matching-msg">No hay solicitudes pendientes.</p>}
-                          </div>
-                        </CollapsiblePanel>
-                      </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Administrador Requerido</h3>
-                        <p>Inicie sesión con cuenta de Administrador para realizar vetting.</p>
-                        {!currentUser && renderLoginForm()}
-                      </div>
+                    {/* REGISTER TAB */}
+                    {activeTab === 'register' && !currentUser && (
+                      <RegisterForm onRegisterSuccess={() => { }} />
                     )}
-                  </div>
-                )}
 
-                {/* TEAMS MANAGEMENT TAB */}
-                {activeTab === 'equipos' && (
-                  <div className="tab-pane-content">
-                    {currentUser ? (
-                      <div className="teams-dashboard">
-                        {myTeam && myTeam.inTeam ? (
+                    {/* DONOR DASHBOARD */}
+                    {activeTab === 'donor' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('DONOR') ? (
                           <div className="glass-card">
-                            <div className="welcome-badge">Mi Equipo: {myTeam.team.name}</div>
-                            {myTeam.team.description && (
-                              <p className="team-description">{myTeam.team.description}</p>
-                            )}
-                            <p className="profile-setting-hint team-sharing-hint">
-                              Compartir ubicación con el equipo: configuración en ⚙️ Perfil.
-                            </p>
+                            <div className="welcome-badge">Aportar Recursos</div>
+                            <ResourceCatalogForm
+                              token={authToken}
+                              collectionCenters={collectionCentersList}
+                              onResourceCataloged={refreshResources}
+                            />
 
                             <CollapsiblePanel
-                              className="nested"
-                              title="Miembros del Equipo"
-                              headingLevel="h4"
-                              collapsed={isPanelCollapsed('team-members')}
-                              onToggle={() => togglePanelCollapse('team-members')}
+                              className="status-panel glass-card margin-top donor-resources-panel"
+                              title="Recursos Catalogados"
+                              collapsed={isPanelCollapsed('donor-resources')}
+                              onToggle={() => togglePanelCollapse('donor-resources')}
+                              onRefresh={refreshResources}
                             >
-                              <div className="team-members-list">
-                                {myTeam.team.members.map((member) => (
-                                  <div key={member.id} className="team-member-row">
-                                    <div className="member-meta">
-                                      <span className="member-name">
-                                        {member.name} {member.id === currentUser.id ? '(Tú)' : ''}
+                              <div className="resources-list-box">
+                                {resourcesList.map((res) => (
+                                  <div
+                                    key={res.id}
+                                    className={`resource-row ${res.donorId === currentUser.id ? 'own-resource' : ''}`}
+                                  >
+                                    <div className="resource-meta">
+                                      <span className="res-row-name">
+                                        {res.name}
+                                        {res.donorId === currentUser.id && (
+                                          <span className="own-resource-badge">Tuyo</span>
+                                        )}
                                       </span>
-                                      <span className="member-roles">{member.roles.split(',').join(', ')}</span>
-                                    </div>
-                                    <div className="member-location-status">
-                                      {member.shareLocationWithTeam ? (
-                                        member.location ? (
-                                          <span className="location-active-badge">
-                                            🟢 En vivo: {member.location.latitude.toFixed(4)}, {member.location.longitude.toFixed(4)}
-                                          </span>
-                                        ) : (
-                                          <span className="location-pending-badge">🟡 Esperando GPS</span>
-                                        )
-                                      ) : (
-                                        <span className="location-inactive-badge">🔴 Sin compartir</span>
+                                      <span className="res-row-category">{res.category}</span>
+                                      {res.collectionCenter && (
+                                        <span className="res-row-location">@ {res.collectionCenter.name}</span>
+                                      )}
+                                      {res.donor && res.donorId !== currentUser.id && (
+                                        <span className="res-row-location">Donante: {res.donor.name}</span>
                                       )}
                                     </div>
+                                    <span className="res-row-qty">{res.stockQuantity} un.</span>
                                   </div>
                                 ))}
+                                {resourcesList.length === 0 && (
+                                  <p className="empty-panel-msg">Aún no hay recursos en el inventario.</p>
+                                )}
                               </div>
                             </CollapsiblePanel>
-
-                            <button onClick={handleLeaveTeam} className="leave-team-btn">
-                              Salir del Equipo
-                            </button>
                           </div>
                         ) : (
-                          <div className="teams-setup">
-                            <div className="glass-card">
-                              <h4>Crear un Equipo Nuevo</h4>
-                              <form onSubmit={handleCreateTeam} className="create-team-form">
-                                <div className="input-group">
-                                  <label htmlFor="team-name">Nombre del Equipo *</label>
-                                  <input
-                                    id="team-name"
-                                    type="text"
-                                    placeholder="Ej. Unidad de Rescate Caracas"
-                                    value={teamName}
-                                    onChange={(e) => setTeamName(e.target.value)}
-                                    required
-                                  />
-                                </div>
-                                <div className="input-group">
-                                  <label htmlFor="team-desc">Descripción</label>
-                                  <input
-                                    id="team-desc"
-                                    type="text"
-                                    placeholder="Ej. Grupo de conductores voluntarios."
-                                    value={teamDesc}
-                                    onChange={(e) => setTeamDesc(e.target.value)}
-                                  />
-                                </div>
-                                <button type="submit" className="confirm-btn">Crear Equipo</button>
-                              </form>
-                            </div>
-
-                            <CollapsiblePanel
-                              className="margin-top"
-                              title="Unirse a un Equipo Existente"
-                              headingLevel="h4"
-                              collapsed={isPanelCollapsed('available-teams')}
-                              onToggle={() => togglePanelCollapse('available-teams')}
-                            >
-                              <div className="available-teams-list">
-                                {availableTeams.map((team) => (
-                                  <div key={team.id} className="available-team-row">
-                                    <div className="team-info">
-                                      <span className="available-team-name">{team.name}</span>
-                                      {team.description && (
-                                        <span className="available-team-desc">{team.description}</span>
-                                      )}
-                                      <span className="team-creator">Creado por: {team.creator.name}</span>
-                                    </div>
-                                    <button
-                                      onClick={() => handleJoinTeam(team.id)}
-                                      className="join-team-btn"
-                                    >
-                                      Unirse
-                                    </button>
-                                  </div>
-                                ))}
-                                {availableTeams.length === 0 && (
-                                  <p className="no-teams-msg">No hay equipos disponibles.</p>
-                                )}
-                              </div>
-                            </CollapsiblePanel>
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Limitado a Donantes</h3>
+                            <p>Inicie sesión con su cuenta de Donante para catalogar y registrar aportes.</p>
+                            {!currentUser && renderLoginForm()}
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="auth-required-card glass-card">
-                        <h3>Acceso Requerido</h3>
-                        <p>Inicie sesión con su cuenta para crear o unirse a un equipo.</p>
-                        {renderLoginForm()}
+                    )}
+
+                    {/* NGO DASHBOARD */}
+                    {activeTab === 'ngo' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('NGO') ? (
+                          <div className="glass-card">
+                            <div className="welcome-badge">Solicitar Insumos</div>
+                            <NeedSubmissionForm
+                              token={authToken}
+                              ngoId={currentUser?.id}
+                              prefill={needPrefill}
+                              onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Limitado a ONGs</h3>
+                            <p>Inicie sesión con su cuenta de ONG / Beneficiario para crear solicitudes de insumos.</p>
+                            {!currentUser && renderLoginForm()}
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
+
+                    {/* DRIVER DASHBOARD */}
+                    {activeTab === 'driver' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('DRIVER') ? (
+                          <div className="driver-dashboard-grid">
+
+                            {/* Account state banner */}
+                            <div className="driver-status-card glass-card">
+                              <div className="driver-header">
+                                <h3>Mi Perfil de Conductor</h3>
+                                {currentUser.driverDetails ? (
+                                  <span className={`status-badge ${currentUser.driverDetails.status}`}>
+                                    {currentUser.driverDetails.status === 'VERIFIED' ? 'Verificado' : 'Pendiente'}
+                                  </span>
+                                ) : (
+                                  <span className="status-badge PENDING_APPROVAL">Incompleto</span>
+                                )}
+                              </div>
+
+                              {!currentUser.driverDetails ? (
+                                <div className="complete-profile-form-box">
+                                  <div className="alert alert-warning">
+                                    Completa tus datos de vehículo y placa para poder conectarte y recibir asignaciones.
+                                  </div>
+
+                                  <form onSubmit={handleCompleteDriverProfile} className="complete-profile-form">
+                                    <div className="input-group">
+                                      <label htmlFor="drv-cedula">Cédula de Identidad *</label>
+                                      <input
+                                        id="drv-cedula"
+                                        type="text"
+                                        placeholder="Ej. V-12345678"
+                                        value={driverCedula}
+                                        onChange={(e) => setDriverCedula(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-category">Tipo de Vehículo *</label>
+                                      <select
+                                        id="drv-category"
+                                        value={driverVehicleCategory}
+                                        onChange={(e) => {
+                                          const next = e.target.value;
+                                          setDriverVehicleCategory(next);
+                                          const preset = VEHICLE_CATEGORIES.find((c) => c.value === next);
+                                          if (preset) setDriverSeatCount(String(preset.defaultSeats));
+                                        }}
+                                        required
+                                      >
+                                        <option value="">Seleccione categoría</option>
+                                        {VEHICLE_CATEGORIES.map((cat) => (
+                                          <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-seats">Número de Asientos *</label>
+                                      <input
+                                        id="drv-seats"
+                                        type="number"
+                                        min="1"
+                                        max="60"
+                                        placeholder="Ej. 5"
+                                        value={driverSeatCount}
+                                        onChange={(e) => setDriverSeatCount(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-vehicle">Marca / Modelo / Color *</label>
+                                      <input
+                                        id="drv-vehicle"
+                                        type="text"
+                                        placeholder="Ej. Toyota Hilux Blanco"
+                                        value={driverVehicle}
+                                        onChange={(e) => setDriverVehicle(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    <div className="input-group">
+                                      <label htmlFor="drv-plate">Placa del Vehículo *</label>
+                                      <input
+                                        id="drv-plate"
+                                        type="text"
+                                        placeholder="Ej. AA123BB"
+                                        value={driverPlate}
+                                        onChange={(e) => setDriverPlate(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+
+                                    {driverProfileError && <span className="error-message">{driverProfileError}</span>}
+                                    {driverProfileMessage && <span className="success-message">{driverProfileMessage}</span>}
+
+                                    <button type="submit" className="confirm-btn">Enviar Perfil</button>
+                                  </form>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="driver-vehicle-summary glass-card">
+                                    <h4>🚗 Mi Vehículo</h4>
+                                    <p className="vehicle-summary-line">{formatVehicleSummary(currentUser.driverDetails)}</p>
+                                  </div>
+
+                                  <div className="availability-toggle-section">
+                                    <p>
+                                      <strong className={driverAvailable ? 'status-online' : 'status-offline'}>
+                                        {driverAvailable ? 'DISPONIBLE PARA DESPACHOS' : 'NO DISPONIBLE'}
+                                      </strong>
+                                    </p>
+                                    <button
+                                      onClick={toggleAvailability}
+                                      className={`toggle-btn ${driverAvailable ? 'online' : 'offline'}`}
+                                    >
+                                      {driverAvailable ? 'Desconectarse' : 'Conectarse (Disponible)'}
+                                    </button>
+                                  </div>
+                                  {driverStatusMessage && <div className="status-msg">{driverStatusMessage}</div>}
+
+                                  {/* Network Loss Simulator */}
+                                  <div className="network-simulator-card">
+                                    <div className="network-sim-header">
+                                      <span>Simulador Fuera de Línea</span>
+                                      <span className={`network-status ${offlineSimulation ? 'offline' : 'online'}`}>
+                                        {offlineSimulation ? '🔴 SIN SEÑAL' : '🟢 CON SEÑAL'}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={toggleOfflineSimulation}
+                                      className={`network-toggle-btn ${offlineSimulation ? 'reconnect' : 'disconnect'}`}
+                                    >
+                                      {offlineSimulation ? 'Sincronizar Coordenadas' : 'Simular Corte de Señal'}
+                                    </button>
+                                    {offlineCount > 0 && (
+                                      <div className="offline-buffer-badge">
+                                        ⚠️ {offlineCount} coordenadas en cola local esperando señal...
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <CollapsiblePanel
+                                    className="nearby-needs-card glass-card"
+                                    title={`🔔 Alertas Cercanas (${driverRadius} km)`}
+                                    headingLevel="h4"
+                                    collapsed={isPanelCollapsed('driver-nearby-needs')}
+                                    onToggle={() => togglePanelCollapse('driver-nearby-needs')}
+                                  >
+                                    <p className="nearby-hint">Priorizadas por proximidad al punto de origen (donde están las personas).</p>
+                                    <div className="nearby-needs-list">
+                                      {nearbyNeeds.map((need) => (
+                                        <div key={need.id} className="nearby-need-row">
+                                          <div className="need-meta">
+                                            <span className="need-location">
+                                              {need.originLabel || `${need.state} - ${need.sector}`}
+                                            </span>
+                                            <span className="need-distance">{need.distanceKm?.toFixed(1)} km</span>
+                                          </div>
+                                          <p className="need-desc-text">{need.description}</p>
+                                          {need.items?.length > 0 && (
+                                            <div className="matched-resources-tags">
+                                              <span className="items-label">Solicitado:</span>
+                                              {need.items.map((item) => (
+                                                <span
+                                                  key={item.id}
+                                                  className={`match-tag ${isNeedItemMatched(item) ? 'matched' : 'unmatched'}`}
+                                                >
+                                                  {formatNeedItemLabel(item)}
+                                                  {isNeedItemMatched(item) ? ' ✓' : ' ⏳'}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                                            Prioridad: {need.urgencyScore}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {nearbyNeeds.length === 0 && (
+                                        <p className="no-needs-msg">No hay alertas activas en tu radio de cobertura.</p>
+                                      )}
+                                    </div>
+                                  </CollapsiblePanel>
+                                </>
+                              )}
+                            </div>
+
+                            {/* ACTIVE OFFER PROPOSAL */}
+                            {activeProposal && (
+                              <div className="proposal-card glass-card active-glow">
+                                <div className="proposal-pulse-header">
+                                  <h4>🚨 ¡DESPACHO PROPUESTO!</h4>
+                                  <span className="countdown-timer">{proposalCountdown}s</span>
+                                </div>
+                                <p className="proposal-desc">{activeProposal.description}</p>
+                                {activeProposal.origin && (
+                                  <div className="proposal-route">
+                                    <p><strong>📍 Origen (recoger):</strong> {activeProposal.origin.label}</p>
+                                    {activeProposal.destination && (
+                                      <p><strong>🏁 Destino (entregar):</strong> {activeProposal.destination.label}</p>
+                                    )}
+                                  </div>
+                                )}
+                                {activeProposal.matchedItems?.length > 0 && (
+                                  <div className="proposal-matches">
+                                    <strong>Recursos emparejados:</strong>
+                                    <ul>
+                                      {activeProposal.matchedItems.map((item, idx) => (
+                                        <li key={idx}>
+                                          {item.quantity}x {item.requested} → {item.offer}
+                                          {item.pickupLabel && ` @ ${item.pickupLabel}`}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                <div className="proposal-actions">
+                                  <button onClick={handleAcceptProposal} className="accept-btn">Aceptar</button>
+                                  <button onClick={handleRejectProposal} className="reject-btn">Rechazar</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* ACTIVE TRANSIT TASK */}
+                            {activeTask && (
+                              <div className="active-task-card glass-card">
+                                <h4>📦 Entrega en Progreso</h4>
+                                <div className="task-details">
+                                  <p>ID: <code>{activeTask.id}</code></p>
+                                  <p>Ubicación GPS: {driverLat != null ? driverLat.toFixed(4) : '—'}, {driverLng != null ? driverLng.toFixed(4) : '—'}</p>
+                                  {activeTask.pickupLatitude && activeTask.pickupLongitude && (
+                                    <p><strong>Origen:</strong> {activeTask.pickupLabel || 'Punto de recogida'}</p>
+                                  )}
+                                  {activeTask.need && (
+                                    <div className="maps-navigation-box">
+                                      {driverLat != null && driverLng != null && activeTask.pickupLatitude && activeTask.need.latitude && (
+                                        <a
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&waypoints=${activeTask.pickupLatitude},${activeTask.pickupLongitude}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="google-maps-btn"
+                                        >
+                                          🗺️ Ruta: Recoger en Origen → Entregar
+                                        </a>
+                                      )}
+                                      {driverLat != null && driverLng != null && !activeTask.pickupLatitude && activeTask.need.latitude && (
+                                        <a
+                                          href={`https://www.google.com/maps/dir/?api=1&origin=${driverLat},${driverLng}&destination=${activeTask.need.latitude},${activeTask.need.longitude}&travelmode=driving`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="google-maps-btn"
+                                        >
+                                          🗺️ Abrir en Google Maps para Navegar
+                                        </a>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <form onSubmit={handleConfirmDelivery} className="confirm-delivery-form">
+                                  <h5>Confirmar Recepción</h5>
+                                  <div className="input-group">
+                                    <label htmlFor="del-signature">Nombre / Cédula Receptor</label>
+                                    <input
+                                      id="del-signature"
+                                      type="text"
+                                      value={deliverySignature}
+                                      onChange={(e) => setDeliverySignature(e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="input-group">
+                                    <label htmlFor="del-photo">URL Foto de Entrega</label>
+                                    <input
+                                      id="del-photo"
+                                      type="text"
+                                      value={deliveryPhoto}
+                                      onChange={(e) => setDeliveryPhoto(e.target.value)}
+                                    />
+                                  </div>
+                                  {deliveryError && <span className="error-message">{deliveryError}</span>}
+                                  {deliveryMessage && <span className="success-message">{deliveryMessage}</span>}
+                                  <button type="submit" className="confirm-btn">Confirmar Entrega</button>
+                                </form>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Conductor Requerido</h3>
+                            <p>Inicie sesión con su cuenta de Conductor para conectarse y administrar entregas.</p>
+                            {!currentUser && renderLoginForm()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ADMINISTRATOR SIMULATOR TAB */}
+                    {activeTab === 'admin' && (
+                      <div className="tab-pane-content">
+                        {currentUser && userRoles.includes('ADMIN') ? (
+                          <div className="admin-panel">
+                            <CollapsiblePanel
+                              className="admin-drivers-section glass-card"
+                              title="Vetting de Conductores"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('admin-pending-drivers')}
+                              onToggle={() => togglePanelCollapse('admin-pending-drivers')}
+                            >
+                              {adminMessage && <div className="alert alert-info">{adminMessage}</div>}
+                              <div className="drivers-approval-list">
+                                {pendingDrivers.map((driver) => (
+                                  <div key={driver.id} className="driver-approval-row">
+                                    <div className="driver-info">
+                                      <span className="driver-name">{driver.name}</span>
+                                      <span className="driver-sub">Cédula: {driver.driverDetails.cedula}</span>
+                                      <span className="driver-sub">
+                                        {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
+                                      </span>
+                                      <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
+                                    </div>
+                                    <button onClick={() => handleApproveDriver(driver.id)} className="approve-btn">Aprobar</button>
+                                  </div>
+                                ))}
+                                {pendingDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores pendientes.</p>}
+                              </div>
+                            </CollapsiblePanel>
+
+                            <CollapsiblePanel
+                              className="admin-fleet-section glass-card margin-top"
+                              title="Flota Verificada"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('admin-fleet')}
+                              onToggle={() => togglePanelCollapse('admin-fleet')}
+                            >
+                              <p className="fleet-hint">Conductores aprobados y tipos de vehículo disponibles en la red.</p>
+                              <div className="fleet-list">
+                                {fleetDrivers.map((driver) => (
+                                  <div key={driver.id} className="fleet-row">
+                                    <div className="fleet-driver-info">
+                                      <span className="driver-name">{driver.name}</span>
+                                      <span className="driver-sub">
+                                        {getVehicleCategoryLabel(driver.driverDetails.vehicleCategory)} · {driver.driverDetails.seatCount} asientos · {driver.driverDetails.licensePlate}
+                                      </span>
+                                      <span className="driver-sub">{driver.driverDetails.vehicleDetails}</span>
+                                    </div>
+                                    <span className={`fleet-status-badge ${driver.available ? 'online' : 'offline'}`}>
+                                      {driver.available ? 'Disponible' : 'No disponible'}
+                                    </span>
+                                  </div>
+                                ))}
+                                {fleetDrivers.length === 0 && <p className="no-drivers-msg">No hay conductores verificados en la flota.</p>}
+                              </div>
+                            </CollapsiblePanel>
+
+                            <CollapsiblePanel
+                              className="admin-matching-section glass-card margin-top"
+                              title="Emparejamiento Manual"
+                              headingLevel="h4"
+                              collapsed={isPanelCollapsed('admin-matching')}
+                              onToggle={() => togglePanelCollapse('admin-matching')}
+                            >
+                              <div className="matching-controls-list">
+                                {needsQueue.filter(n => n.status === 'PENDING').map((need) => (
+                                  <div key={need.id} className="matching-row">
+                                    <div className="matching-info">
+                                      <span className="need-title">{need.description}</span>
+                                      <span className="need-sub">
+                                        Origen: {need.originLabel || `${need.state} - ${need.sector}`}
+                                      </span>
+                                      {need.items?.length > 0 && (
+                                        <span className="need-sub">
+                                          Solicitado: {need.items.map((item) => formatNeedItemLabel(item)).join(' · ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button onClick={() => simulateDispatchproposal(need.id)} className="match-btn">Asignar Conductor</button>
+                                  </div>
+                                ))}
+                                {needsQueue.filter(n => n.status === 'PENDING').length === 0 && <p className="no-matching-msg">No hay solicitudes pendientes.</p>}
+                              </div>
+                            </CollapsiblePanel>
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Administrador Requerido</h3>
+                            <p>Inicie sesión con cuenta de Administrador para realizar vetting.</p>
+                            {!currentUser && renderLoginForm()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TEAMS MANAGEMENT TAB */}
+                    {activeTab === 'equipos' && (
+                      <div className="tab-pane-content">
+                        {currentUser ? (
+                          <div className="teams-dashboard">
+                            {myTeam && myTeam.inTeam ? (
+                              <div className="glass-card">
+                                <div className="welcome-badge">Mi Equipo: {myTeam.team.name}</div>
+                                {myTeam.team.description && (
+                                  <p className="team-description">{myTeam.team.description}</p>
+                                )}
+                                <p className="profile-setting-hint team-sharing-hint">
+                                  Compartir ubicación con el equipo: configuración en ⚙️ Perfil.
+                                </p>
+
+                                <CollapsiblePanel
+                                  className="nested"
+                                  title="Miembros del Equipo"
+                                  headingLevel="h4"
+                                  collapsed={isPanelCollapsed('team-members')}
+                                  onToggle={() => togglePanelCollapse('team-members')}
+                                >
+                                  <div className="team-members-list">
+                                    {myTeam.team.members.map((member) => (
+                                      <div key={member.id} className="team-member-row">
+                                        <div className="member-meta">
+                                          <span className="member-name">
+                                            {member.name} {member.id === currentUser.id ? '(Tú)' : ''}
+                                          </span>
+                                          <span className="member-roles">{member.roles.split(',').join(', ')}</span>
+                                        </div>
+                                        <div className="member-location-status">
+                                          {member.shareLocationWithTeam ? (
+                                            member.location ? (
+                                              <span className="location-active-badge">
+                                                🟢 En vivo: {member.location.latitude.toFixed(4)}, {member.location.longitude.toFixed(4)}
+                                              </span>
+                                            ) : (
+                                              <span className="location-pending-badge">🟡 Esperando GPS</span>
+                                            )
+                                          ) : (
+                                            <span className="location-inactive-badge">🔴 Sin compartir</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CollapsiblePanel>
+
+                                <button onClick={handleLeaveTeam} className="leave-team-btn">
+                                  Salir del Equipo
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="teams-setup">
+                                <div className="glass-card">
+                                  <h4>Crear un Equipo Nuevo</h4>
+                                  <form onSubmit={handleCreateTeam} className="create-team-form">
+                                    <div className="input-group">
+                                      <label htmlFor="team-name">Nombre del Equipo *</label>
+                                      <input
+                                        id="team-name"
+                                        type="text"
+                                        placeholder="Ej. Unidad de Rescate Caracas"
+                                        value={teamName}
+                                        onChange={(e) => setTeamName(e.target.value)}
+                                        required
+                                      />
+                                    </div>
+                                    <div className="input-group">
+                                      <label htmlFor="team-desc">Descripción</label>
+                                      <input
+                                        id="team-desc"
+                                        type="text"
+                                        placeholder="Ej. Grupo de conductores voluntarios."
+                                        value={teamDesc}
+                                        onChange={(e) => setTeamDesc(e.target.value)}
+                                      />
+                                    </div>
+                                    <button type="submit" className="confirm-btn">Crear Equipo</button>
+                                  </form>
+                                </div>
+
+                                <CollapsiblePanel
+                                  className="margin-top"
+                                  title="Unirse a un Equipo Existente"
+                                  headingLevel="h4"
+                                  collapsed={isPanelCollapsed('available-teams')}
+                                  onToggle={() => togglePanelCollapse('available-teams')}
+                                >
+                                  <div className="available-teams-list">
+                                    {availableTeams.map((team) => (
+                                      <div key={team.id} className="available-team-row">
+                                        <div className="team-info">
+                                          <span className="available-team-name">{team.name}</span>
+                                          {team.description && (
+                                            <span className="available-team-desc">{team.description}</span>
+                                          )}
+                                          <span className="team-creator">Creado por: {team.creator.name}</span>
+                                        </div>
+                                        <button
+                                          onClick={() => handleJoinTeam(team.id)}
+                                          className="join-team-btn"
+                                        >
+                                          Unirse
+                                        </button>
+                                      </div>
+                                    ))}
+                                    {availableTeams.length === 0 && (
+                                      <p className="no-teams-msg">No hay equipos disponibles.</p>
+                                    )}
+                                  </div>
+                                </CollapsiblePanel>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="auth-required-card glass-card">
+                            <h3>Acceso Requerido</h3>
+                            <p>Inicie sesión con su cuenta para crear o unirse a un equipo.</p>
+                            {renderLoginForm()}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   </>
                 )}
@@ -2361,8 +2339,8 @@ export default function Home() {
               <div className={`column-panel right-panel animate-slide-up ${rightMinimized ? 'minimized' : ''}`}>
                 <div className="panel-header-minimize">
                   <span>{rightMinimized ? '📊 Resumen General' : ''}</span>
-                  <button 
-                    className="minimize-panel-btn" 
+                  <button
+                    className="minimize-panel-btn"
                     onClick={() => setRightMinimized(!rightMinimized)}
                     title={rightMinimized ? "Maximizar Panel" : "Minimizar Panel"}
                   >
@@ -2372,72 +2350,72 @@ export default function Home() {
 
                 {!rightMinimized && (
                   <>
-                
-                {/* NEEDS PRIORITY QUEUE */}
-                <CollapsiblePanel
-                  className="status-panel glass-card"
-                  title="Cola de Urgencias"
-                  collapsed={isPanelCollapsed('urgency-queue')}
-                  onToggle={() => togglePanelCollapse('urgency-queue')}
-                  onRefresh={refreshNeeds}
-                >
-                  <div className="needs-list">
-                    {needsQueue.map((need) => {
-                      const isHigh = need.urgencyScore >= 80;
-                      return (
-                        <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
-                          <div className="need-card-header">
-                            <span className="need-location">{need.state} - {need.sector}</span>
-                            <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
-                              {isHigh ? 'INMEDIATO' : `Prioridad: ${need.urgencyScore}`}
-                            </span>
-                          </div>
-                          <p className="need-card-desc">{need.description}</p>
-                          {need.items?.length > 0 && (
-                            <div className="need-card-items">
-                              {need.items.map((item) => (
-                                <span
-                                  key={item.id}
-                                  className={`need-item-chip ${isNeedItemMatched(item) ? 'matched' : 'pending'}`}
-                                >
-                                  {formatNeedItemLabel(item)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="need-card-footer">
-                            <span className={`status-badge-need ${need.status}`}>
-                              {need.status === 'PENDING' ? 'Pendiente' : 
-                               need.status === 'ALLOCATED' ? 'Asignada' : 'Entregado'}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {needsQueue.length === 0 && <p className="empty-panel-msg">No hay solicitudes.</p>}
-                  </div>
-                </CollapsiblePanel>
 
-                <CollapsiblePanel
-                  className="status-panel glass-card margin-top"
-                  title="Inventario Disponible"
-                  collapsed={isPanelCollapsed('available-inventory')}
-                  onToggle={() => togglePanelCollapse('available-inventory')}
-                  onRefresh={refreshResources}
-                >
-                  <div className="resources-list-box">
-                    {resourcesList.map((res) => (
-                      <div key={res.id} className="resource-row">
-                        <div className="resource-meta">
-                          <span className="res-row-name">{res.name}</span>
-                          <span className="res-row-category">{res.category}</span>
-                        </div>
-                        <span className="res-row-qty">{res.stockQuantity} un.</span>
+                    {/* NEEDS PRIORITY QUEUE */}
+                    <CollapsiblePanel
+                      className="status-panel glass-card"
+                      title="Cola de Urgencias"
+                      collapsed={isPanelCollapsed('urgency-queue')}
+                      onToggle={() => togglePanelCollapse('urgency-queue')}
+                      onRefresh={refreshNeeds}
+                    >
+                      <div className="needs-list">
+                        {needsQueue.map((need) => {
+                          const isHigh = need.urgencyScore >= 80;
+                          return (
+                            <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
+                              <div className="need-card-header">
+                                <span className="need-location">{need.state} - {need.sector}</span>
+                                <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
+                                  {isHigh ? 'INMEDIATO' : `Prioridad: ${need.urgencyScore}`}
+                                </span>
+                              </div>
+                              <p className="need-card-desc">{need.description}</p>
+                              {need.items?.length > 0 && (
+                                <div className="need-card-items">
+                                  {need.items.map((item) => (
+                                    <span
+                                      key={item.id}
+                                      className={`need-item-chip ${isNeedItemMatched(item) ? 'matched' : 'pending'}`}
+                                    >
+                                      {formatNeedItemLabel(item)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="need-card-footer">
+                                <span className={`status-badge-need ${need.status}`}>
+                                  {need.status === 'PENDING' ? 'Pendiente' :
+                                    need.status === 'ALLOCATED' ? 'Asignada' : 'Entregado'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {needsQueue.length === 0 && <p className="empty-panel-msg">No hay solicitudes.</p>}
                       </div>
-                    ))}
-                    {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
-                  </div>
-                </CollapsiblePanel>
+                    </CollapsiblePanel>
+
+                    <CollapsiblePanel
+                      className="status-panel glass-card margin-top"
+                      title="Inventario Disponible"
+                      collapsed={isPanelCollapsed('available-inventory')}
+                      onToggle={() => togglePanelCollapse('available-inventory')}
+                      onRefresh={refreshResources}
+                    >
+                      <div className="resources-list-box">
+                        {resourcesList.map((res) => (
+                          <div key={res.id} className="resource-row">
+                            <div className="resource-meta">
+                              <span className="res-row-name">{res.name}</span>
+                              <span className="res-row-category">{res.category}</span>
+                            </div>
+                            <span className="res-row-qty">{res.stockQuantity} un.</span>
+                          </div>
+                        ))}
+                        {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
+                      </div>
+                    </CollapsiblePanel>
                   </>
                 )}
               </div>
@@ -2454,7 +2432,7 @@ export default function Home() {
           <div className="collection-center-modal glass-card animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <h3>Registrar Centro de Acopio</h3>
             <p className="modal-coords">Ubicación elegida: {mapClickLocation.lat.toFixed(5)}, {mapClickLocation.lng.toFixed(5)}</p>
-            
+
             <form onSubmit={handleRegisterCenter}>
               <div className="input-group">
                 <label htmlFor="center-name">Nombre del Centro *</label>
@@ -2690,10 +2668,14 @@ export default function Home() {
       <style jsx>{`
         .home-wrapper {
           position: relative;
-          width: 100vw;
-          height: 100vh;
+          width: 100%;
+          height: calc(100vh - 218px);
+          min-height: 720px;
+          border-radius: 16px;
           overflow: hidden;
-          background-color: #0b0f19;
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
         }
 
         .floating-ui-container {
@@ -2716,7 +2698,7 @@ export default function Home() {
         }
 
         .bottom-controls-bar {
-          position: fixed;
+          position: absolute;
           bottom: 20px;
           left: 20px;
           pointer-events: auto;
@@ -2726,8 +2708,9 @@ export default function Home() {
           gap: 12px;
           padding: 8px 16px;
           border-radius: 30px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+          border: 1px solid #cbd5e1;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+          background: rgba(255, 255, 255, 0.95);
         }
 
         .toggle-ui-btn {
@@ -2735,7 +2718,7 @@ export default function Home() {
           border: none;
           font-weight: 700;
           font-size: 13px;
-          color: #f8fafc;
+          color: #0f172a;
           cursor: pointer;
           transition: all 0.2s;
           padding: 6px 12px;
@@ -2743,28 +2726,29 @@ export default function Home() {
         }
 
         .toggle-ui-btn:hover {
-          background-color: rgba(255, 255, 255, 0.08);
+          background-color: #eff6ff;
+          color: #2563eb;
         }
 
         .map-style-selector {
           display: flex;
           align-items: center;
           gap: 6px;
-          border-left: 1px solid rgba(255, 255, 255, 0.1);
+          border-left: 1px solid #cbd5e1;
           padding-left: 12px;
         }
 
         .style-label {
           font-size: 11px;
-          color: #cbd5e1;
+          color: #475569;
           font-weight: bold;
           text-transform: uppercase;
         }
 
         .map-style-select {
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: #f8fafc;
+          background: #ffffff;
+          border: 1px solid #cbd5e1;
+          color: #0f172a;
           border-radius: 12px;
           padding: 4px 8px;
           font-size: 12px;
@@ -2774,8 +2758,8 @@ export default function Home() {
         }
 
         .map-style-select:hover {
-          border-color: rgba(255, 255, 255, 0.2);
-          background: rgba(0, 0, 0, 0.6);
+          border-color: #2563eb;
+          background: #eff6ff;
         }
 
         /* Floating Header design */
@@ -2787,9 +2771,11 @@ export default function Home() {
           padding: 12px 24px;
           border-radius: 16px;
           margin-bottom: 20px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
           width: 100%;
           box-sizing: border-box;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #e2e8f0;
         }
 
         .brand-box {
@@ -2805,13 +2791,13 @@ export default function Home() {
         .brand-text h2 {
           font-size: 18px;
           font-weight: 800;
-          color: #f8fafc;
+          color: #0f172a;
           letter-spacing: -0.5px;
         }
 
         .brand-text p {
           font-size: 11px;
-          color: #94a3b8;
+          color: #64748b;
         }
 
         .header-session-info {
@@ -2819,29 +2805,31 @@ export default function Home() {
           align-items: center;
           gap: 14px;
           font-size: 13px;
-          color: #e2e8f0;
+          color: #334155;
+          font-weight: 600;
         }
 
         .logout-btn {
           background-color: #ef4444;
           color: white;
           border: none;
-          padding: 6px 12px;
+          padding: 6px 14px;
           border-radius: 8px;
           cursor: pointer;
           font-weight: 600;
           font-size: 12px;
-          transition: opacity 0.2s;
+          transition: all 0.2s;
         }
 
-        .logout-btn:hover { opacity: 0.9; }
+        .logout-btn:hover { background-color: #dc2626; }
         .guest-badge {
-          background-color: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 4px 10px;
+          background-color: #eff6ff;
+          border: 1px solid #bfdbfe;
+          padding: 4px 12px;
           border-radius: 20px;
           font-size: 11px;
-          color: #cbd5e1;
+          font-weight: 600;
+          color: #1d4ed8;
         }
 
         /* Columns Floating Panels Layout */
@@ -2849,7 +2837,7 @@ export default function Home() {
           display: flex;
           justify-content: space-between;
           flex: 1;
-          height: calc(100vh - 160px);
+          min-height: 0;
           gap: 20px;
           box-sizing: border-box;
           overflow: hidden;
@@ -2896,27 +2884,28 @@ export default function Home() {
 
         /* Glass Cards styles */
         .glass-card {
-          background: rgba(15, 23, 42, 0.85);
+          background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid #e2e8f0;
           border-radius: 16px;
           padding: 24px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+          color: #0f172a;
         }
 
         .welcome-badge {
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 700;
-          color: #f97316;
+          color: #2563eb;
           margin-bottom: 12px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
 
         .panel-text {
-          font-size: 13px;
-          color: #cbd5e1;
+          font-size: 14px;
+          color: #334155;
           line-height: 1.5;
           margin-bottom: 14px;
         }
@@ -2927,14 +2916,15 @@ export default function Home() {
         }
 
         .text-orange {
-          color: #fdba74;
+          color: #d97706;
         }
 
         .legend-box {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          background: rgba(0, 0, 0, 0.2);
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 16px;
@@ -2945,7 +2935,8 @@ export default function Home() {
           align-items: center;
           gap: 10px;
           font-size: 12px;
-          color: #cbd5e1;
+          color: #334155;
+          font-weight: 500;
         }
 
         .dot {
@@ -2954,17 +2945,17 @@ export default function Home() {
           border-radius: 50%;
         }
         .dot.red { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
-        .dot.blue { background-color: #3b82f6; }
-        .dot.orange { background-color: #f97316; }
+        .dot.blue { background-color: #2563eb; }
+        .dot.orange { background-color: #f59e0b; }
         .dot.cyan { background-color: #06b6d4; box-shadow: 0 0 8px #06b6d4; }
 
         .register-center-trigger-btn {
           width: 100%;
           padding: 12px;
           border-radius: 10px;
-          border: 1px solid rgba(249, 115, 22, 0.4);
-          background-color: rgba(249, 115, 22, 0.1);
-          color: #fdba74;
+          border: 1px solid #bfdbfe;
+          background-color: #eff6ff;
+          color: #1d4ed8;
           font-weight: 700;
           font-size: 13px;
           cursor: pointer;
@@ -2972,8 +2963,8 @@ export default function Home() {
           margin-top: 14px;
         }
         .register-center-trigger-btn:hover {
-          background-color: rgba(249, 115, 22, 0.2);
-          border-color: rgba(249, 115, 22, 0.6);
+          background-color: #dbeafe;
+          border-color: #3b82f6;
         }
         .register-center-trigger-btn.active {
           background-color: #ef4444;
@@ -2991,9 +2982,11 @@ export default function Home() {
           display: flex;
           flex-wrap: wrap;
           gap: 4px;
-          padding: 4px;
+          padding: 6px;
           border-radius: 12px;
           margin-bottom: 14px;
+          background-color: #f1f5f9;
+          border: 1px solid #e2e8f0;
           pointer-events: auto;
         }
 
@@ -3002,29 +2995,30 @@ export default function Home() {
           min-width: 75px;
           background: none;
           border: none;
-          padding: 10px 4px;
+          padding: 10px 6px;
           font-size: 12px;
           font-weight: 600;
-          color: #94a3b8;
+          color: #64748b;
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s;
         }
 
         .tab-btn:hover {
-          color: #f8fafc;
-          background-color: rgba(255, 255, 255, 0.03);
+          color: #0f172a;
+          background-color: rgba(0, 0, 0, 0.04);
         }
 
         .tab-btn.active {
-          color: #f8fafc;
-          background-color: rgba(255, 255, 255, 0.08);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          color: #2563eb;
+          background-color: #ffffff;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          font-weight: 700;
         }
 
         .tab-btn.register-tab {
-          background-color: rgba(59, 130, 246, 0.1);
-          color: #60a5fa;
+          background-color: #eff6ff;
+          color: #1d4ed8;
         }
         .tab-btn.register-tab.active {
           background-color: #3b82f6;
@@ -3037,10 +3031,11 @@ export default function Home() {
         .auth-required-card h3 {
           font-size: 18px;
           margin-bottom: 8px;
-          color: #f8fafc;
+          color: #0f172a;
+          font-weight: 700;
         }
         .auth-required-card p {
-          color: #94a3b8;
+          color: #475569;
           font-size: 13px;
           margin-bottom: 20px;
         }
@@ -3054,8 +3049,8 @@ export default function Home() {
           gap: 12px;
         }
         .login-mini-form label {
-          font-size: 11px;
-          color: #94a3b8;
+          font-size: 12px;
+          color: #334155;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -3063,32 +3058,33 @@ export default function Home() {
         .login-mini-form input {
           width: 100%;
           padding: 12px 14px;
-          background-color: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
           border-radius: 10px;
-          color: white;
+          color: #0f172a;
           outline: none;
-          font-size: 13px;
+          font-size: 14px;
           transition: all 0.2s;
         }
         .login-mini-form input:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
         .login-submit-btn {
-          background-color: #3b82f6;
+          background-color: #2563eb;
           color: white;
           border: none;
           padding: 12px;
           border-radius: 10px;
           font-weight: 700;
-          font-size: 13px;
+          font-size: 14px;
           cursor: pointer;
           transition: all 0.2s;
           text-align: center;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
         .login-submit-btn:hover {
-          background-color: #2563eb;
+          background-color: #1d4ed8;
           transform: translateY(-1px);
         }
         .login-submit-btn:active {
@@ -3100,17 +3096,17 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px 14px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-          font-size: 11px;
+          border-bottom: 1px solid #e2e8f0;
+          font-size: 12px;
           font-weight: bold;
-          color: #cbd5e1;
+          color: #334155;
           user-select: none;
         }
 
         .minimize-panel-btn {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: #64748b;
           font-size: 12px;
           cursor: pointer;
           transition: transform 0.2s;
@@ -3118,7 +3114,7 @@ export default function Home() {
         }
 
         .minimize-panel-btn:hover {
-          color: #f8fafc;
+          color: #0f172a;
           transform: scale(1.1);
         }
 
@@ -3138,15 +3134,15 @@ export default function Home() {
         }
 
         .team-description {
-          font-size: 12px;
-          color: #cbd5e1;
+          font-size: 13px;
+          color: #475569;
           margin-bottom: 14px;
           line-height: 1.4;
         }
 
         .team-sharing-control {
-          background: rgba(6, 182, 212, 0.1);
-          border: 1px solid rgba(6, 182, 212, 0.25);
+          background: #eff6ff;
+          border: 1px solid #bfdbfe;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 14px;
@@ -3156,17 +3152,19 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 8px;
-          font-size: 12px;
-          color: #a5f3fc;
+          font-size: 13px;
+          color: #1d4ed8;
           cursor: pointer;
+          font-weight: 600;
         }
 
         .team-members-section h4 {
           font-size: 13px;
-          color: #f8fafc;
+          color: #0f172a;
           margin-bottom: 10px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          border-bottom: 1px solid #e2e8f0;
           padding-bottom: 6px;
+          font-weight: 700;
         }
 
         .team-members-list {
@@ -3182,8 +3180,8 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px;
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
         }
 
@@ -3193,30 +3191,30 @@ export default function Home() {
         }
 
         .member-name {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 600;
-          color: #f8fafc;
+          color: #0f172a;
         }
 
         .member-roles {
-          font-size: 9px;
-          color: #94a3b8;
+          font-size: 10px;
+          color: #64748b;
           text-transform: uppercase;
         }
 
         .location-active-badge {
-          font-size: 10px;
-          color: #34d399;
+          font-size: 11px;
+          color: #10b981;
           font-weight: bold;
         }
 
         .location-pending-badge {
-          font-size: 10px;
-          color: #fbbf24;
+          font-size: 11px;
+          color: #f59e0b;
         }
 
         .location-inactive-badge {
-          font-size: 10px;
+          font-size: 11px;
           color: #f87171;
         }
 
@@ -3251,8 +3249,8 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px;
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
         }
 
@@ -3262,26 +3260,26 @@ export default function Home() {
         }
 
         .available-team-name {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 600;
-          color: #f8fafc;
+          color: #0f172a;
         }
 
         .available-team-desc {
-          font-size: 10px;
-          color: #cbd5e1;
+          font-size: 11px;
+          color: #475569;
         }
 
         .team-creator {
-          font-size: 9px;
-          color: #94a3b8;
+          font-size: 10px;
+          color: #64748b;
         }
 
         .join-team-btn {
           padding: 6px 12px;
-          background-color: rgba(59, 130, 246, 0.15);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-          color: #60a5fa;
+          background-color: #eff6ff;
+          border: 1px solid #bfdbfe;
+          color: #1d4ed8;
           border-radius: 6px;
           font-size: 11px;
           font-weight: 700;
@@ -3290,17 +3288,17 @@ export default function Home() {
         }
 
         .join-team-btn:hover {
-          background-color: rgba(59, 130, 246, 0.25);
+          background-color: #dbeafe;
         }
 
         /* Selected point details card overlay */
         .selected-point-details-card {
           margin: 14px;
           padding: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          background: rgba(15, 23, 42, 0.95);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+          background: #ffffff;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
 
         .selected-point-details-card .card-header {
@@ -3311,11 +3309,11 @@ export default function Home() {
         }
 
         .point-type-badge {
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 800;
           text-transform: uppercase;
-          background: rgba(59, 130, 246, 0.2);
-          color: #60a5fa;
+          background: #eff6ff;
+          color: #1d4ed8;
           padding: 4px 8px;
           border-radius: 6px;
           letter-spacing: 0.5px;
@@ -3324,7 +3322,7 @@ export default function Home() {
         .close-point-btn {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: #64748b;
           font-size: 14px;
           font-weight: bold;
           cursor: pointer;
@@ -3332,26 +3330,26 @@ export default function Home() {
         }
 
         .close-point-btn:hover {
-          color: #f8fafc;
+          color: #0f172a;
         }
 
         .selected-point-details-card h3 {
-          font-size: 15px;
-          color: #f8fafc;
+          font-size: 16px;
+          color: #0f172a;
           margin: 0 0 10px 0;
           font-weight: 700;
         }
 
         .point-desc {
-          font-size: 12px;
-          color: #cbd5e1;
+          font-size: 13px;
+          color: #334155;
           margin: 0 0 8px 0;
           line-height: 1.4;
         }
 
         .point-coords {
-          font-size: 10px;
-          color: #94a3b8;
+          font-size: 11px;
+          color: #64748b;
           margin: 6px 0 12px 0;
         }
 
@@ -3364,25 +3362,27 @@ export default function Home() {
         .point-urgency-badge {
           font-size: 11px;
           font-weight: 700;
-          padding: 2px 6px;
+          padding: 2px 8px;
           border-radius: 4px;
         }
 
         .point-urgency-badge.high {
-          background: rgba(239, 68, 68, 0.2);
-          color: #f87171;
+          background: #fef2f2;
+          color: #dc2626;
+          border: 1px solid #fecaca;
         }
 
         .point-urgency-badge.normal {
-          background: rgba(59, 130, 246, 0.2);
-          color: #60a5fa;
+          background: #eff6ff;
+          color: #2563eb;
+          border: 1px solid #bfdbfe;
         }
 
         .point-status-badge {
           font-size: 11px;
-          background: rgba(255, 255, 255, 0.08);
-          color: #cbd5e1;
-          padding: 2px 6px;
+          background: #f1f5f9;
+          color: #475569;
+          padding: 2px 8px;
           border-radius: 4px;
         }
 
@@ -3484,8 +3484,8 @@ export default function Home() {
 
         /* Complete profile & Driver Styles */
         .complete-profile-form-box {
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
           padding: 16px;
           margin-top: 10px;
@@ -3502,20 +3502,21 @@ export default function Home() {
         }
         .input-group label {
           font-size: 12px;
-          color: #cbd5e1;
-          font-weight: 500;
+          color: #334155;
+          font-weight: 600;
         }
         .input-group input[type="text"] {
           padding: 10px 12px;
-          background-color: #0b0f19;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background-color: #ffffff;
+          border: 1px solid #cbd5e1;
           border-radius: 8px;
-          color: white;
-          font-size: 13px;
+          color: #0f172a;
+          font-size: 14px;
           outline: none;
         }
         .input-group input[type="text"]:focus {
-          border-color: #3b82f6;
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
         }
 
         .driver-dashboard-grid {
@@ -3531,7 +3532,7 @@ export default function Home() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid #e2e8f0;
           padding-bottom: 10px;
           margin-bottom: 14px;
         }
@@ -3541,19 +3542,20 @@ export default function Home() {
           font-size: 10px;
           font-weight: 700;
         }
-        .status-badge.VERIFIED { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
-        .status-badge.PENDING_APPROVAL { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+        .status-badge.VERIFIED { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .status-badge.PENDING_APPROVAL { background-color: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
         
         .availability-toggle-section {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: rgba(0, 0, 0, 0.2);
+          background: #f1f5f9;
           padding: 12px;
           border-radius: 10px;
+          border: 1px solid #e2e8f0;
         }
-        .status-online { color: #10b981; }
-        .status-offline { color: #94a3b8; }
+        .status-online { color: #10b981; font-weight: 700; }
+        .status-offline { color: #64748b; font-weight: 700; }
         .toggle-btn {
           border: none;
           padding: 8px 14px;
@@ -3562,12 +3564,12 @@ export default function Home() {
           font-size: 12px;
           cursor: pointer;
         }
-        .toggle-btn.online { background-color: #374151; color: white; }
+        .toggle-btn.online { background-color: #e2e8f0; color: #0f172a; }
         .toggle-btn.offline { background-color: #10b981; color: white; }
 
         .network-simulator-card {
           margin-top: 14px;
-          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          border-top: 1px dashed #cbd5e1;
           padding-top: 14px;
         }
         .network-sim-header {
@@ -3576,7 +3578,7 @@ export default function Home() {
           font-size: 12px;
           font-weight: 600;
           margin-bottom: 8px;
-          color: #94a3b8;
+          color: #475569;
         }
         .network-status.online { color: #10b981; }
         .network-status.offline { color: #ef4444; }
@@ -3589,13 +3591,13 @@ export default function Home() {
           font-size: 12px;
           cursor: pointer;
         }
-        .network-toggle-btn.disconnect { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; }
-        .network-toggle-btn.reconnect { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; }
+        .network-toggle-btn.disconnect { background-color: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .network-toggle-btn.reconnect { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
         .offline-buffer-badge {
           margin-top: 8px;
-          background: rgba(245, 158, 11, 0.15);
-          color: #f59e0b;
-          border: 1px solid #f59e0b;
+          background: #fffbeb;
+          color: #d97706;
+          border: 1px solid #fde68a;
           padding: 8px 12px;
           border-radius: 8px;
           font-size: 11px;
@@ -3604,7 +3606,7 @@ export default function Home() {
         /* Driver setting adjustments & alert cards */
         .driver-settings-card, .nearby-needs-card {
           margin-top: 14px;
-          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          border-top: 1px dashed #cbd5e1;
           padding-top: 14px;
         }
         .setting-row {
@@ -3614,14 +3616,14 @@ export default function Home() {
         }
         .setting-row label {
           font-size: 11px;
-          color: #94a3b8;
+          color: #475569;
           text-transform: uppercase;
           font-weight: bold;
         }
         .radius-range-slider {
           width: 100%;
           cursor: pointer;
-          accent-color: #3b82f6;
+          accent-color: #2563eb;
           margin-top: 4px;
         }
         .nearby-needs-list {
@@ -3633,8 +3635,8 @@ export default function Home() {
           margin-top: 10px;
         }
         .nearby-need-row {
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 8px;
           padding: 10px;
           display: flex;
@@ -3709,8 +3711,10 @@ export default function Home() {
           font-size: 13px;
           margin: 8px 0;
           padding: 8px;
-          background: rgba(0,0,0,0.2);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 6px;
+          color: #0f172a;
         }
         .proposal-matches ul {
           margin: 4px 0 0 16px;
@@ -3722,23 +3726,23 @@ export default function Home() {
           align-items: center;
         }
         .need-location {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 700;
-          color: #f8fafc;
+          color: #0f172a;
         }
         .need-distance {
-          font-size: 10px;
-          color: #38bdf8;
+          font-size: 11px;
+          color: #2563eb;
           font-weight: bold;
         }
         .need-desc-text {
-          font-size: 11px;
-          color: #cbd5e1;
+          font-size: 12px;
+          color: #475569;
           margin: 0;
         }
         .no-needs-msg {
-          font-size: 11px;
-          color: #94a3b8;
+          font-size: 12px;
+          color: #64748b;
           text-align: center;
           padding: 12px;
           margin: 0;
@@ -3748,9 +3752,9 @@ export default function Home() {
           width: 100%;
           text-align: center;
           padding: 11px;
-          background-color: rgba(16, 185, 129, 0.15);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          color: #34d399;
+          background-color: #ecfdf5;
+          border: 1px solid #a7f3d0;
+          color: #059669;
           border-radius: 10px;
           font-size: 12px;
           font-weight: 700;
@@ -3760,20 +3764,21 @@ export default function Home() {
           transition: all 0.2s;
         }
         .google-maps-btn:hover {
-          background-color: rgba(16, 185, 129, 0.25);
+          background-color: #d1fae5;
           transform: translateY(-1px);
         }
 
         .proposal-card {
-          border: 1px solid #3b82f6;
+          border: 1px solid #2563eb;
           animation: pulseProposal 2s infinite;
           padding: 20px;
           border-radius: 16px;
+          background: #ffffff;
         }
         @keyframes pulseProposal {
-          0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
-          50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.4); border-color: #60a5fa; }
-          100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+          0% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.15); }
+          50% { box-shadow: 0 0 25px rgba(37, 99, 235, 0.3); border-color: #1d4ed8; }
+          100% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.15); }
         }
         .proposal-pulse-header {
           display: flex;
@@ -3781,7 +3786,7 @@ export default function Home() {
           align-items: center;
           margin-bottom: 8px;
         }
-        .proposal-pulse-header h4 { color: #60a5fa; font-size: 14px; font-weight: 800; }
+        .proposal-pulse-header h4 { color: #1d4ed8; font-size: 14px; font-weight: 800; }
         .countdown-timer { background: #ef4444; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
         .proposal-actions { display: flex; gap: 8px; margin-top: 12px; }
         .proposal-actions button { flex: 1; padding: 8px; border-radius: 6px; font-weight: 700; font-size: 12px; border: none; cursor: pointer; }
@@ -3793,15 +3798,16 @@ export default function Home() {
           border-radius: 16px;
         }
         .task-details {
-          background-color: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 12px;
           border-radius: 10px;
           font-size: 12px;
           margin-bottom: 14px;
+          color: #0f172a;
         }
         .confirm-delivery-form {
-          border-top: 1px dashed rgba(255, 255, 255, 0.08);
+          border-top: 1px dashed #cbd5e1;
           padding-top: 12px;
         }
         .confirm-btn {
@@ -3822,22 +3828,23 @@ export default function Home() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 10px 14px;
           border-radius: 10px;
+          color: #0f172a;
         }
         .driver-info, .matching-info {
           display: flex;
           flex-direction: column;
         }
-        .driver-name, .need-title { font-weight: 600; font-size: 13px; color: #f8fafc; }
-        .driver-sub { font-size: 11px; color: #94a3b8; }
+        .driver-name, .need-title { font-weight: 600; font-size: 13px; color: #0f172a; }
+        .driver-sub { font-size: 11px; color: #64748b; }
         .approve-btn, .match-btn { background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
 
         .fleet-hint {
           font-size: 12px;
-          color: #94a3b8;
+          color: #64748b;
           margin: 0 0 12px 0;
         }
         .fleet-list {
@@ -3850,10 +3857,11 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           gap: 12px;
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 10px 14px;
           border-radius: 10px;
+          color: #0f172a;
         }
         .fleet-driver-info {
           display: flex;
@@ -3870,12 +3878,12 @@ export default function Home() {
         }
         .fleet-status-badge.online {
           background: rgba(16, 185, 129, 0.15);
-          color: #34d399;
+          color: #059669;
           border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .fleet-status-badge.offline {
           background: rgba(148, 163, 184, 0.15);
-          color: #94a3b8;
+          color: #64748b;
           border: 1px solid rgba(148, 163, 184, 0.3);
         }
 
@@ -3883,15 +3891,17 @@ export default function Home() {
           padding: 14px 16px;
           margin-bottom: 14px;
           border-radius: 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
         }
         .driver-vehicle-summary h4 {
           margin: 0 0 8px 0;
           font-size: 13px;
-          color: #f8fafc;
+          color: #0f172a;
         }
         .vehicle-summary-line {
           font-size: 12px;
-          color: #cbd5e1;
+          color: #475569;
           margin: 6px 0 0 0;
           line-height: 1.4;
         }
@@ -3907,11 +3917,11 @@ export default function Home() {
           align-items: center;
           margin-bottom: 12px;
         }
-        .panel-header h3 { font-size: 14px; font-weight: 800; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; }
+        .panel-header h3 { font-size: 14px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
         .refresh-btn {
           background: none;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #94a3b8;
+          border: 1px solid #cbd5e1;
+          color: #64748b;
           width: 26px;
           height: 26px;
           border-radius: 50%;
@@ -3928,22 +3938,23 @@ export default function Home() {
         }
 
         .need-item-card {
-          background: rgba(0, 0, 0, 0.15);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           padding: 12px;
           border-radius: 10px;
           display: flex;
           flex-direction: column;
           gap: 6px;
+          color: #0f172a;
         }
         .priority-high-border { border-color: rgba(239, 68, 68, 0.3) !important; }
         .need-card-header { display: flex; justify-content: space-between; font-size: 11px; }
-        .need-location { font-weight: 700; color: #94a3b8; }
+        .need-location { font-weight: 700; color: #475569; }
         .priority-badge { font-weight: 800; }
-        .priority-badge.high { color: #f87171; }
-        .priority-badge.normal { color: #60a5fa; }
-        .need-card-desc { font-size: 12px; color: #cbd5e1; line-height: 1.4; }
-        .need-card-footer { border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 6px; font-size: 10px; }
+        .priority-badge.high { color: #ef4444; }
+        .priority-badge.normal { color: #2563eb; }
+        .need-card-desc { font-size: 12px; color: #334155; line-height: 1.4; }
+        .need-card-footer { border-top: 1px solid #e2e8f0; padding-top: 6px; font-size: 10px; }
         
         .donor-resources-panel {
           margin-top: 20px;
@@ -3979,16 +3990,17 @@ export default function Home() {
           justify-content: space-between;
           align-items: center;
           padding: 10px 12px;
-          background: rgba(0, 0, 0, 0.15);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
           border-radius: 10px;
+          color: #0f172a;
         }
         .resource-meta { display: flex; flex-direction: column; }
-        .res-row-name { font-size: 12px; font-weight: 600; color: #f8fafc; }
-        .res-row-category { font-size: 9px; color: #94a3b8; text-transform: uppercase; }
-        .res-row-qty { font-size: 12px; font-weight: 700; color: #fdba74; }
+        .res-row-name { font-size: 12px; font-weight: 600; color: #0f172a; }
+        .res-row-category { font-size: 9px; color: #64748b; text-transform: uppercase; }
+        .res-row-qty { font-size: 12px; font-weight: 700; color: #ea580c; }
 
-        .empty-panel-msg { font-size: 11px; color: #94a3b8; font-style: italic; text-align: center; padding: 10px 0; }
+        .empty-panel-msg { font-size: 11px; color: #64748b; font-style: italic; text-align: center; padding: 10px 0; }
         .margin-top { margin-top: 16px; }
 
         .alert {
@@ -4275,6 +4287,36 @@ export default function Home() {
           vertical-align: super;
           margin-left: 2px;
         }
+        .submit-btn {
+          width: 100%;
+          background-color: #2563eb;
+          color: #ffffff;
+          border: none;
+          padding: 12px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background-color 0.2s, transform 0.1s;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        .submit-btn:hover:not(:disabled) {
+          background-color: #1d4ed8;
+        }
+        .submit-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+        .submit-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.25s ease-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
     </div>
   );
@@ -4308,17 +4350,12 @@ export default function Home() {
         </div>
 
         {loginError && <span className="error-message">{loginError}</span>}
-        {loginSuccess && <span className="success-message" style={{color: 'var(--success-color)'}}>{loginSuccess}</span>}
+        {loginSuccess && <span className="success-message" style={{ color: 'var(--success-color)' }}>{loginSuccess}</span>}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '10px', justifyContent: 'center' }}>
+          <Button type="submit" >Iniciar Sesión</Button>
+          <Button type="button" onClick={() => setActiveTab('register')} variant="outline">Crear cuenta nueva</Button>
+        </div>
 
-        <button type="submit" className="login-submit-btn">Iniciar Sesión</button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('register')}
-          className="login-submit-btn"
-          style={{backgroundColor: 'transparent', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8'}}
-        >
-          Crear cuenta nueva
-        </button>
       </form>
     );
   }
