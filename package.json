@@ -41,7 +41,7 @@
     "leaflet": "1.9.4",
     "lucide-react": "1.22.0",
     "mysql2": "3.22.5",
-    "next": "14.2.35",
+    "next": "15.5.18",
     "passport": "0.7.0",
     "passport-jwt": "4.0.1",
     "postcss": "^8.5.16",
