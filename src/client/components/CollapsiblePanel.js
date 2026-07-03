@@ -38,9 +38,9 @@ export default function CollapsiblePanel({
 
       <style jsx>{`
         .collapsible-panel {
-          background: rgba(0, 0, 0, 1);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
+          background: rgba(0, 0, 0, 0.8);
+          // backdrop-filter: blur(16px);
+          // -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 16px;
           padding: 20px;
