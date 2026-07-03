@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { TeamDeliveryPolicy, TeamDriverAccessStatus, TeamRole } from '@prisma/client';
 
 @Injectable()
 export class TeamsService {
@@ -38,7 +39,7 @@ export class TeamsService {
     // Automatically join the newly created team
     await this.prisma.user.update({
       where: { id: creatorId },
-      data: { teamId: team.id },
+      data: { teamId: team.id, teamRole: TeamRole.MANAGER },
     });
 
     return {
@@ -85,7 +86,7 @@ export class TeamsService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { teamId },
+      data: { teamId, teamRole: TeamRole.COLLABORATOR },
     });
 
     return {
@@ -112,7 +113,7 @@ export class TeamsService {
     // but the team remains.
     await this.prisma.user.update({
       where: { id: userId },
-      data: { teamId: null, shareLocationWithTeam: false },
+      data: { teamId: null, shareLocationWithTeam: false, teamRole: TeamRole.COLLABORATOR },
     });
 
     return {
@@ -146,6 +147,125 @@ export class TeamsService {
     };
   }
 
+  private async getManagedTeamOrThrow(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        team: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado.');
+    }
+
+    if (!user.team) {
+      throw new BadRequestException('Debes pertenecer a un equipo para administrar sus ajustes.');
+    }
+
+    const isManager = user.teamRole === TeamRole.MANAGER || user.team.creatorId === user.id;
+    if (!isManager) {
+      throw new BadRequestException('Solo el creador o un gerente del equipo puede administrar estos ajustes.');
+    }
+
+    return { user, team: user.team };
+  }
+
+  async updateMyTeamSettings(
+    userId: string,
+    payload: { name?: string; description?: string; deliveryPolicy?: TeamDeliveryPolicy },
+  ) {
+    const { team } = await this.getManagedTeamOrThrow(userId);
+
+    if (!payload.name && payload.description === undefined && !payload.deliveryPolicy) {
+      throw new BadRequestException('Debe enviar al menos un campo para actualizar.');
+    }
+
+    const updatedTeam = await this.prisma.team.update({
+      where: { id: team.id },
+      data: {
+        ...(payload.name ? { name: payload.name } : {}),
+        ...(payload.description !== undefined ? { description: payload.description } : {}),
+        ...(payload.deliveryPolicy ? { deliveryPolicy: payload.deliveryPolicy } : {}),
+      },
+    });
+
+    return {
+      message: 'Ajustes del equipo actualizados con éxito.',
+      team: updatedTeam,
+    };
+  }
+
+  async getMyTeamSettings(userId: string) {
+    const { user, team } = await this.getManagedTeamOrThrow(userId);
+
+    const teamWithSettings = await this.prisma.team.findUnique({
+      where: { id: team.id },
+      include: {
+        members: {
+          select: {
+            id: true,
+            name: true,
+            roles: true,
+            teamRole: true,
+            shareLocationWithTeam: true,
+          },
+        },
+        driverAccessRequests: {
+          include: {
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                roles: true,
+                teamId: true,
+                teamRole: true,
+              },
+            },
+            approvedBy: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { updatedAt: 'desc' },
+        },
+      },
+    });
+
+    if (!teamWithSettings) {
+      throw new NotFoundException('Equipo no encontrado.');
+    }
+
+    const membersWithLocations = await Promise.all(
+      teamWithSettings.members.map(async (member) => {
+        let location = null;
+        if (member.shareLocationWithTeam) {
+          location = await this.redisService.getUserLocation(member.id);
+        }
+        return {
+          ...member,
+          location,
+        };
+      }),
+    );
+
+    return {
+      inTeam: true,
+      team: {
+        id: teamWithSettings.id,
+        name: teamWithSettings.name,
+        description: teamWithSettings.description,
+        creatorId: teamWithSettings.creatorId,
+        deliveryPolicy: teamWithSettings.deliveryPolicy,
+        members: membersWithLocations,
+        driverAccessRequests: teamWithSettings.driverAccessRequests,
+      },
+      shareLocationWithTeam: user.shareLocationWithTeam,
+    };
+  }
+
   async getMyTeamDetails(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -157,6 +277,7 @@ export class TeamsService {
                 id: true,
                 name: true,
                 roles: true,
+                teamRole: true,
                 shareLocationWithTeam: true,
               },
             },
@@ -173,7 +294,6 @@ export class TeamsService {
       return { inTeam: false };
     }
 
-    // Hydrate members' locations from Redis
     const membersWithLocations = await Promise.all(
       user.team.members.map(async (member) => {
         let location = null;
@@ -197,6 +317,138 @@ export class TeamsService {
         members: membersWithLocations,
       },
       shareLocationWithTeam: user.shareLocationWithTeam,
+    };
+  }
+
+  async requestDriverAccess(userId: string, teamId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { team: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado.');
+    }
+
+    if (!user.roles.split(',').includes('DRIVER')) {
+      throw new BadRequestException('Solo los conductores pueden solicitar acceso de despacho al equipo.');
+    }
+
+    const targetTeamId = teamId ?? user.teamId;
+    if (!targetTeamId) {
+      throw new BadRequestException('Debe indicar un equipo para solicitar acceso.');
+    }
+
+    const team = await this.prisma.team.findUnique({
+      where: { id: targetTeamId },
+    });
+
+    if (!team) {
+      throw new NotFoundException('Equipo no encontrado.');
+    }
+
+    const access = await this.prisma.teamDriverAccess.upsert({
+      where: {
+        teamId_driverId: {
+          teamId: targetTeamId,
+          driverId: userId,
+        },
+      },
+      create: {
+        teamId: targetTeamId,
+        driverId: userId,
+        status: TeamDriverAccessStatus.PENDING,
+      },
+      update: {
+        status: TeamDriverAccessStatus.PENDING,
+        approvedById: null,
+      },
+    });
+
+    return {
+      message: 'Solicitud de acceso enviada al equipo.',
+      access,
+    };
+  }
+
+  async listPendingDriverAccess(userId: string) {
+    const { team } = await this.getManagedTeamOrThrow(userId);
+
+    const requests = await this.prisma.teamDriverAccess.findMany({
+      where: { teamId: team.id, status: TeamDriverAccessStatus.PENDING },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            name: true,
+            roles: true,
+            teamId: true,
+            teamRole: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return {
+      teamId: team.id,
+      requests,
+    };
+  }
+
+  async approveDriverAccess(userId: string, driverId: string) {
+    const { user, team } = await this.getManagedTeamOrThrow(userId);
+
+    const access = await this.prisma.teamDriverAccess.upsert({
+      where: {
+        teamId_driverId: {
+          teamId: team.id,
+          driverId,
+        },
+      },
+      create: {
+        teamId: team.id,
+        driverId,
+        status: TeamDriverAccessStatus.APPROVED,
+        approvedById: user.id,
+      },
+      update: {
+        status: TeamDriverAccessStatus.APPROVED,
+        approvedById: user.id,
+      },
+    });
+
+    return {
+      message: 'El conductor fue aprobado para este equipo.',
+      access,
+    };
+  }
+
+  async rejectDriverAccess(userId: string, driverId: string) {
+    const { user, team } = await this.getManagedTeamOrThrow(userId);
+
+    const access = await this.prisma.teamDriverAccess.upsert({
+      where: {
+        teamId_driverId: {
+          teamId: team.id,
+          driverId,
+        },
+      },
+      create: {
+        teamId: team.id,
+        driverId,
+        status: TeamDriverAccessStatus.REJECTED,
+        approvedById: user.id,
+      },
+      update: {
+        status: TeamDriverAccessStatus.REJECTED,
+        approvedById: user.id,
+      },
+    });
+
+    return {
+      message: 'El conductor fue rechazado para este equipo.',
+      access,
     };
   }
 }

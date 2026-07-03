@@ -22,6 +22,7 @@ describe('DispatchService', () => {
     get: jest.fn(),
     exists: jest.fn(),
     del: jest.fn(),
+    geopos: jest.fn(),
   };
 
   const mockRedisService = {
@@ -37,6 +38,7 @@ describe('DispatchService', () => {
     $transaction: jest.fn((cb) => cb(mockPrisma)),
     $queryRaw: jest.fn(),
     dispatchTask: {
+      findFirst: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -107,6 +109,7 @@ describe('DispatchService', () => {
       // $queryRaw returns taskProposed
       mockPrisma.$queryRaw.mockResolvedValueOnce([taskProposed]);
       mockRedisClient.exists.mockResolvedValueOnce(1); // Redis proposal key exists
+      mockPrisma.dispatchTask.findFirst.mockResolvedValueOnce(null);
       mockPrisma.dispatchTask.update.mockResolvedValueOnce({
         ...taskProposed,
         status: DispatchStatus.ACCEPTED,
@@ -120,10 +123,12 @@ describe('DispatchService', () => {
 
       const result1 = await service.acceptDispatchTask(driverId1, taskId);
       expect(result1.task.status).toBe(DispatchStatus.ACCEPTED);
-      expect(mockPrisma.dispatchTask.update).toHaveBeenCalledWith({
-        where: { id: taskId },
-        data: expect.objectContaining({ status: DispatchStatus.ACCEPTED }),
-      });
+      expect(mockPrisma.dispatchTask.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: taskId },
+          data: expect.objectContaining({ status: DispatchStatus.ACCEPTED }),
+        }),
+      );
 
       // Mock second call (Driver 2 tries to accept same task)
       const taskAlreadyAccepted = {
@@ -162,6 +167,7 @@ describe('DispatchService', () => {
 
       mockPrisma.$queryRaw.mockResolvedValueOnce([taskProposed]);
       mockRedisClient.exists.mockResolvedValueOnce(1); // Redis proposal key exists
+      mockPrisma.dispatchTask.findFirst.mockResolvedValueOnce(null);
       mockPrisma.needItem.findMany.mockResolvedValueOnce([
         { resourceId: 'res-1', quantity: 20 },
       ]);
@@ -191,6 +197,7 @@ describe('DispatchService', () => {
 
       mockPrisma.$queryRaw.mockResolvedValueOnce([taskProposed]);
       mockRedisClient.exists.mockResolvedValueOnce(0); // 0 = Redis key does not exist (timeout)
+      mockPrisma.dispatchTask.findFirst.mockResolvedValueOnce(null);
       mockPrisma.dispatchTask.update.mockResolvedValueOnce({
         ...taskProposed,
         status: DispatchStatus.TIMED_OUT,
@@ -231,6 +238,7 @@ describe('DispatchService', () => {
         items: [],
       };
       mockPrisma.need.findUnique.mockResolvedValueOnce(need);
+      mockPrisma.dispatchTask.findFirst.mockResolvedValueOnce(null);
       mockRedisClient.smembers.mockResolvedValueOnce(['driver-expired']);
       mockRedisService.findNearbyDrivers.mockResolvedValueOnce(['driver-2']);
       mockPrisma.user.findUnique.mockResolvedValueOnce({
@@ -239,6 +247,7 @@ describe('DispatchService', () => {
         driverDetails: { status: DriverStatus.VERIFIED },
       });
       mockRedisService.getDriverAvailability.mockResolvedValueOnce('Disponible');
+      mockRedisClient.geopos.mockResolvedValueOnce([[ -66.9, 10.5 ]]);
       mockPrisma.dispatchTask.create.mockResolvedValueOnce({ id: 'task-new' });
 
       await service.checkProposalTimeouts();
@@ -251,7 +260,11 @@ describe('DispatchService', () => {
       // Verify that it attempts to schedule next driver
       expect(mockPrisma.need.findUnique).toHaveBeenCalledWith({
         where: { id: 'need-1' },
-        include: { items: true },
+        include: {
+          items: { include: { item: true, matchedResource: { include: { item: true } } } },
+          collectionCenter: true,
+          ngo: { select: { id: true, teamId: true } },
+        },
       });
     });
   });

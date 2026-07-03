@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Request, Param } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { FirebaseAuthGuard } from '../users/firebase-auth.guard';
+import { TeamDeliveryPolicy } from '@prisma/client';
 
 @Controller('teams')
 @UseGuards(FirebaseAuthGuard)
@@ -35,5 +36,38 @@ export class TeamsController {
   @Get('my-team')
   async getMyTeamDetails(@Request() req: any) {
     return this.teamsService.getMyTeamDetails(req.user.id);
+  }
+
+  @Get('my-team/settings')
+  async getMyTeamSettings(@Request() req: any) {
+    return this.teamsService.getMyTeamSettings(req.user.id);
+  }
+
+  @Patch('my-team/settings')
+  async updateMyTeamSettings(
+    @Request() req: any,
+    @Body() body: { name?: string; description?: string; deliveryPolicy?: TeamDeliveryPolicy },
+  ) {
+    return this.teamsService.updateMyTeamSettings(req.user.id, body);
+  }
+
+  @Post('driver-access/request')
+  async requestDriverAccess(@Request() req: any, @Body() body: { teamId?: string }) {
+    return this.teamsService.requestDriverAccess(req.user.id, body.teamId);
+  }
+
+  @Get('my-team/driver-access/pending')
+  async listPendingDriverAccess(@Request() req: any) {
+    return this.teamsService.listPendingDriverAccess(req.user.id);
+  }
+
+  @Post('my-team/driver-access/:driverId/approve')
+  async approveDriverAccess(@Request() req: any, @Param('driverId') driverId: string) {
+    return this.teamsService.approveDriverAccess(req.user.id, driverId);
+  }
+
+  @Post('my-team/driver-access/:driverId/reject')
+  async rejectDriverAccess(@Request() req: any, @Param('driverId') driverId: string) {
+    return this.teamsService.rejectDriverAccess(req.user.id, driverId);
   }
 }
