@@ -6,6 +6,8 @@ import NeedSubmissionForm from '../components/NeedSubmissionForm';
 import CollapsiblePanel from '../components/CollapsiblePanel';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 
 const MapComponent = dynamic(() => import('../components/MapComponent'), { ssr: false });
 import { initSocket, sendLocation, disconnectSocket, syncBufferedCoordinates } from '../utils/socket';
@@ -1188,7 +1190,7 @@ export default function Home() {
   // Handle map point click selection
   const handlePointClick = useCallback((point) => {
     setSelectedPoint(point);
-    setLeftMinimized(false);
+    // setLeftMinimized(false);
   }, []);
 
   // Register collection center submit
@@ -1549,89 +1551,7 @@ export default function Home() {
                   </button>
                 </div>
 
-                {selectedPoint && !leftMinimized && (
-                  <CollapsiblePanel
-                    className="selected-point-details-card glass animate-fade-in"
-                    title={selectedPoint.type === 'center' ? '🏠 Centro de Acopio' : '🚨 Necesidad'}
-                    headingLevel="h4"
-                    collapsed={isPanelCollapsed('selected-point')}
-                    onToggle={() => togglePanelCollapse('selected-point')}
-                    headerExtra={(
-                      <button onClick={() => setSelectedPoint(null)} className="close-point-btn" title="Cerrar detalles" type="button">✕</button>
-                    )}
-                  >
-                    <div className="card-body">
-                      {selectedPoint.type === 'center' ? (
-                        <>
-                          <h3>{selectedPoint.data.name}</h3>
-                          <p className="point-desc"><strong>Servicios:</strong> {selectedPoint.data.services}</p>
-                          {selectedPoint.data.address && (
-                            <p className="point-desc"><strong>Dirección:</strong> {selectedPoint.data.address}</p>
-                          )}
-                          <p className="point-desc"><strong>Descripción:</strong> {selectedPoint.data.description}</p>
-                          <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
 
-                          {currentUser && userRoles.includes('NGO') && (
-                            <button
-                              onClick={() => {
-                                setNeedPrefill({
-                                  latitude: parseFloat(selectedPoint.data.latitude),
-                                  longitude: parseFloat(selectedPoint.data.longitude),
-                                  state: selectedPoint.data.address?.split(',')[0] || '',
-                                  sector: selectedPoint.data.name,
-                                  collectionCenterId: selectedPoint.data.id,
-                                  collectionCenterName: selectedPoint.data.name,
-                                  description: `Solicitud de recursos en ${selectedPoint.data.name}`,
-                                });
-                                setActiveTab('ngo');
-                              }}
-                              className="point-action-btn"
-                            >
-                              ✍️ Crear Solicitud Aquí
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <h3>{selectedPoint.data.state} - {selectedPoint.data.sector}</h3>
-                          <p className="point-desc"><strong>Descripción:</strong> {selectedPoint.data.description}</p>
-                          <div className="point-meta-row">
-                            <span className={`point-urgency-badge ${selectedPoint.data.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                              Urgencia: {selectedPoint.data.urgencyScore}
-                            </span>
-                            <span className="point-status-badge">
-                              {selectedPoint.data.status === 'PENDING' ? 'Pendiente' : selectedPoint.data.status === 'ALLOCATED' ? 'Asignado' : 'Entregado'}
-                            </span>
-                          </div>
-                          <p className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
-
-                          {selectedPoint.data.items?.length > 0 && (
-                            <div className="point-items-list">
-                              <strong>Recursos solicitados:</strong>
-                              <ul>
-                                {selectedPoint.data.items.map((item) => (
-                                  <li key={item.id} className={isNeedItemMatched(item) ? 'item-matched' : 'item-pending'}>
-                                    {formatNeedItemLabel(item)}
-                                    {isNeedItemMatched(item) ? ' ✓' : ' (pendiente)'}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {currentUser && userRoles.includes('ADMIN') && selectedPoint.data.status === 'PENDING' && (
-                            <button
-                              onClick={() => handleProposeDispatch(selectedPoint.data.id)}
-                              className="point-action-btn dispatch-action"
-                            >
-                              ⚡ Asignar Conductor Cercano
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </CollapsiblePanel>
-                )}
 
                 {!leftMinimized && (
                   <>
@@ -2463,19 +2383,19 @@ export default function Home() {
                 <label>Servicios Ofrecidos *</label>
                 <div className="checkbox-grid">
                   <label className="checkbox-label">
-                    <input type="checkbox" checked={centerServices.includes('Comida')} onChange={() => handleServiceCheckbox('Comida')} />
+                    <Checkbox checked={centerServices.includes('Comida')} onCheckedChange={() => handleServiceCheckbox('Comida')} />
                     Alimentos
                   </label>
                   <label className="checkbox-label">
-                    <input type="checkbox" checked={centerServices.includes('Medicina')} onChange={() => handleServiceCheckbox('Medicina')} />
+                    <Checkbox checked={centerServices.includes('Medicina')} onCheckedChange={() => handleServiceCheckbox('Medicina')} />
                     Medicina
                   </label>
                   <label className="checkbox-label">
-                    <input type="checkbox" checked={centerServices.includes('Camas')} onChange={() => handleServiceCheckbox('Camas')} />
+                    <Checkbox checked={centerServices.includes('Camas')} onCheckedChange={() => handleServiceCheckbox('Camas')} />
                     Dormitorio
                   </label>
                   <label className="checkbox-label">
-                    <input type="checkbox" checked={centerServices.includes('Refugio')} onChange={() => handleServiceCheckbox('Refugio')} />
+                    <Checkbox checked={centerServices.includes('Refugio')} onCheckedChange={() => handleServiceCheckbox('Refugio')} />
                     Refugio
                   </label>
                 </div>
@@ -2493,10 +2413,103 @@ export default function Home() {
               </div>
 
               <div className="modal-actions">
-                <button type="submit" className="confirm-btn">Guardar Centro</button>
-                <button type="button" className="reject-btn" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>Cancelar</button>
+                <Button style={{ background: '#3b82f6' }} type="submit" className="flex-1">Guardar Centro</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => { setRegisteringCenter(false); setMapClickLocation(null); }}>Cancelar</Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* POINT DETAILS MODAL */}
+      {selectedPoint && (
+        <div className="modal-backdrop" onClick={() => setSelectedPoint(null)}>
+          <div className="collection-center-modal glass-card animate-fade-in" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{selectedPoint.type === 'center' ? '🏠 Centro de Acopio' : '🚨 Necesidad'}</h3>
+              <button type="button" className="close-modal-btn" onClick={() => setSelectedPoint(null)}>✕</button>
+            </div>
+
+            <div className="modal-body-content" style={{ marginTop: '15px' }}>
+              {selectedPoint.type === 'center' ? (
+                <>
+                  <hr />
+                  <Badge variant="secondary" className='mt-4 mb-2' style={{ fontSize: '14px', padding: '6px 12px' }}>{selectedPoint.data.name}</Badge>
+                  <p className="point-desc" style={{ color: '#cbd5e1', fontSize: '14px', margin: '8px 0' }}><strong>Servicios:</strong> {selectedPoint.data.services}</p>
+                  {selectedPoint.data.address && (
+                    <p className="point-desc" style={{ color: '#cbd5e1', fontSize: '14px', margin: '8px 0' }}><strong>Dirección:</strong> {selectedPoint.data.address}</p>
+                  )}
+                  <p className="point-desc" style={{ color: '#cbd5e1', fontSize: '14px', margin: '8px 0' }}><strong>Descripción:</strong> {selectedPoint.data.description}</p>
+                  <hr />
+                  <div style={{ marginTop: '12px', marginBottom: '16px' }}>
+                    <Badge variant="secondary" className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</Badge>
+                  </div>
+
+                  {currentUser && userRoles.includes('NGO') && (
+                    <Button
+                      onClick={() => {
+                        setNeedPrefill({
+                          latitude: parseFloat(selectedPoint.data.latitude),
+                          longitude: parseFloat(selectedPoint.data.longitude),
+                          state: selectedPoint.data.address?.split(',')[0] || '',
+                          sector: selectedPoint.data.name,
+                          collectionCenterId: selectedPoint.data.id,
+                          collectionCenterName: selectedPoint.data.name,
+                          description: `Solicitud de recursos en ${selectedPoint.data.name}`,
+                        });
+                        setActiveTab('ngo');
+                        setSelectedPoint(null);
+                      }}
+                      className="w-full mt-4"
+                      style={{ background: '#3b82f6' }}
+                    >
+                      ✍️ Crear Solicitud Aquí
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h3 style={{ color: 'white', fontSize: '18px', marginBottom: '8px' }}>{selectedPoint.data.state} - {selectedPoint.data.sector}</h3>
+                  <p className="point-desc" style={{ color: '#cbd5e1', fontSize: '14px', margin: '8px 0' }}><strong>Descripción:</strong> {selectedPoint.data.description}</p>
+                  <div className="point-meta-row" style={{ display: 'flex', gap: '10px', margin: '12px 0' }}>
+                    <span className={`point-urgency-badge ${selectedPoint.data.urgencyScore >= 80 ? 'high' : 'normal'}`}>
+                      Urgencia: {selectedPoint.data.urgencyScore}
+                    </span>
+                    <span className="point-status-badge">
+                      {selectedPoint.data.status === 'PENDING' ? 'Pendiente' : selectedPoint.data.status === 'ALLOCATED' ? 'Asignado' : 'Entregado'}
+                    </span>
+                  </div>
+                  <p className="point-coords" style={{ color: '#cbd5e1', fontSize: '12px', margin: '8px 0' }}>📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
+
+                  {selectedPoint.data.items?.length > 0 && (
+                    <div className="point-items-list" style={{ marginTop: '16px', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+                      <strong style={{ color: 'white' }}>Recursos solicitados:</strong>
+                      <ul style={{ paddingLeft: '20px', marginTop: '6px', color: '#cbd5e1' }}>
+                        {selectedPoint.data.items.map((item) => (
+                          <li key={item.id} className={isNeedItemMatched(item) ? 'item-matched' : 'item-pending'} style={{ margin: '4px 0' }}>
+                            {formatNeedItemLabel(item)}
+                            {isNeedItemMatched(item) ? ' ✓' : ' (pendiente)'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {currentUser && userRoles.includes('ADMIN') && selectedPoint.data.status === 'PENDING' && (
+                    <Button
+                      onClick={() => {
+                        handleProposeDispatch(selectedPoint.data.id);
+                        setSelectedPoint(null);
+                      }}
+                      className="w-full mt-4"
+                      style={{ background: '#3b82f6' }}
+                    >
+                      ⚡ Asignar Conductor Cercano
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2823,6 +2836,8 @@ export default function Home() {
 
         .logout-btn:hover { background-color: #dc2626; }
         .guest-badge {
+          display: flex;
+          align-items: center;
           background-color: #eff6ff;
           border: 1px solid #bfdbfe;
           padding: 4px 12px;
@@ -3342,15 +3357,15 @@ export default function Home() {
 
         .point-desc {
           font-size: 13px;
-          color: #334155;
+          color: #94a3b8;
           margin: 0 0 8px 0;
           line-height: 1.4;
         }
 
         .point-coords {
           font-size: 11px;
-          color: #64748b;
-          margin: 6px 0 12px 0;
+          color: white;
+          margin: 12px 0 12px 0;
         }
 
         .point-meta-row {
@@ -3425,7 +3440,7 @@ export default function Home() {
           pointer-events: auto;
           background: rgba(15, 23, 42, 0.95);
           backdrop-filter: blur(16px);
-          border: 1px solid rgba(249, 115, 22, 0.3);
+          border: 0px;
           border-radius: 20px;
           padding: 28px;
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
@@ -3439,7 +3454,9 @@ export default function Home() {
 
         .collection-center-modal h3 {
           font-size: 20px;
-          color: #f97316;
+          color: white;
+          text-transform: uppercase;
+          font-weight: 700;
           margin-bottom: 4px;
         }
         .modal-coords {
@@ -3450,10 +3467,9 @@ export default function Home() {
         }
         .textarea-input {
           padding: 10px;
-          background-color: #0b0f19;
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-radius: 8px;
-          color: white;
+          color: #66707eff;
           font-size: 13px;
           font-family: inherit;
           resize: vertical;
@@ -3464,7 +3480,7 @@ export default function Home() {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 8px;
-          background: rgba(0, 0, 0, 0.2);
+          background: white;
           padding: 10px;
           border-radius: 8px;
         }
@@ -3502,8 +3518,11 @@ export default function Home() {
         }
         .input-group label {
           font-size: 12px;
-          color: #334155;
+          color: #94a3b8;
           font-weight: 600;
+        }
+        .checkbox-grid .checkbox-label {
+          color: #66707eff;
         }
         .input-group input[type="text"] {
           padding: 10px 12px;
