@@ -1875,7 +1875,7 @@ export default function Home() {
                                   </div>
 
                                   <CollapsiblePanel
-                                    className="nearby-needs-card glass-card"
+                                    className="nearby-needs-card glass-card mt-4"
                                     title={`🔔 Alertas Cercanas (${driverRadius} km)`}
                                     headingLevel="h4"
                                     collapsed={isPanelCollapsed('driver-nearby-needs')}

@@ -295,32 +295,38 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
           {errors.items && <span className="error-message block-error">{errors.items}</span>}
 
           {selectedItems.map((item, index) => (
-            <div key={index} className="item-row">
-              <ItemAutocomplete
-                value={item.itemId ? { id: item.itemId, name: item.itemName } : null}
-                category={item.category}
-                onCategoryChange={(cat) => handleItemChange(index, 'category', cat)}
-                onChange={(catalogItem) => handleItemSelect(index, catalogItem)}
-              />
+            <div>
 
-              <input
-                type="number"
-                min="1"
-                placeholder="Cant."
-                value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                className="quantity-input"
-              />
+              <div key={index} className="item-row">
+                <ItemAutocomplete
+                  value={item.itemId ? { id: item.itemId, name: item.itemName } : null}
+                  category={item.category}
+                  className="flex-column"
+                  onCategoryChange={(cat) => handleItemChange(index, 'category', cat)}
+                  onChange={(catalogItem) => handleItemSelect(index, catalogItem)}
+                />
 
-              <button
-                type="button"
-                onClick={() => removeItemRow(index)}
-                disabled={selectedItems.length <= 1}
-                className="delete-item-btn"
-                title="Eliminar ítem"
-              >
-                ✕
-              </button>
+              </div>
+              <div key={index} className="item-row">
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Cant."
+                  value={item.quantity}
+                  onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                  className="quantity-input"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => removeItemRow(index)}
+                  disabled={selectedItems.length <= 1}
+                  className="delete-item-btn absolute"
+                  title="Eliminar ítem"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
 
