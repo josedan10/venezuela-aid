@@ -23,8 +23,26 @@ export class CollectionCentersService {
   async findAll() {
     return this.prisma.collectionCenter.findMany({
       include: {
-        resources: true,
-        needs: true,
+        resources: {
+          include: {
+            item: true,
+            donor: true
+          }
+        },
+        needs: {
+          include: {
+            items: {
+              include: {
+                item: true,
+                matchedResource: {
+                  include: {
+                    item: true
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc',

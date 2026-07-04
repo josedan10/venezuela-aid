@@ -8,6 +8,9 @@ import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import { ArrowUpRightIcon } from "lucide-react"
+import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 const MapComponent = dynamic(() => import('../components/MapComponent'), { ssr: false });
 import { initSocket, sendLocation, disconnectSocket, syncBufferedCoordinates } from '../utils/socket';
@@ -1907,9 +1910,10 @@ export default function Home() {
                                               ))}
                                             </div>
                                           )}
-                                          <span className={`urgency-tag ${need.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                                            Prioridad: {need.urgencyScore}
-                                          </span>
+                                          <Progress value={need.urgencyScore} className="w-full max-w-sm">
+                                            <ProgressLabel>Urgencia</ProgressLabel>
+                                            {/* <ProgressValue /> */}
+                                          </Progress>
                                         </div>
                                       ))}
                                       {nearbyNeeds.length === 0 && (
@@ -2287,9 +2291,17 @@ export default function Home() {
                             <div key={need.id} className={`need-item-card ${isHigh ? 'priority-high-border' : ''}`}>
                               <div className="need-card-header">
                                 <span className="need-location">{need.state} - {need.sector}</span>
-                                <span className={`priority-badge ${isHigh ? 'high' : 'normal'}`}>
-                                  {isHigh ? 'INMEDIATO' : `Prioridad: ${need.urgencyScore}`}
-                                </span>
+                                {isHigh && (
+                                  <span className="priority-badge high">
+                                    INMEDIATO
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ marginTop: '8px', marginBottom: '8px' }}>
+                                <Progress value={need.urgencyScore} className="w-full max-w-sm">
+                                  <ProgressLabel>Urgencia</ProgressLabel>
+                                  {/* <ProgressValue /> */}
+                                </Progress>
                               </div>
                               <p className="need-card-desc">{need.description}</p>
                               {need.items?.length > 0 && (
@@ -2444,8 +2456,89 @@ export default function Home() {
                   )}
                   <p className="point-desc" style={{ color: '#cbd5e1', fontSize: '14px', margin: '8px 0' }}><strong>Descripción:</strong> {selectedPoint.data.description}</p>
                   <hr />
+                  {/* Recursos Section */}
+                  <div style={{ marginTop: '16px' }}>
+                    <h4 style={{ fontSize: '15px', fontWeight: 'bold', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      📦 Inventario Disponible ({selectedPoint.data.resources?.length || 0})
+                    </h4>
+                    {selectedPoint.data.resources && selectedPoint.data.resources.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {selectedPoint.data.resources.map((res) => (
+                          <div key={res.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.05)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                            <div>
+                              <div style={{ color: 'white', fontSize: '13px', fontWeight: '500' }}>{res.name || res.item?.name}</div>
+                              {res.donor?.name && (
+                                <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>Donado por: {res.donor.name}</div>
+                              )}
+                            </div>
+                            <Badge style={{ background: 'var(--success-glow)', color: 'var(--success-color)', fontSize: '11px', fontWeight: 'bold' }}>
+                              {res.stockQuantity} un.
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0' }}>No hay recursos registrados en este centro.</p>
+                    )}
+                  </div>
+
+                  {/* Necesidades Section */}
+                  <div className="mt-5 mb-3">
+                    <h4 className="text-[15px] font-bold text-white mb-2 flex items-center gap-1.5">
+                      🚨 Necesidades Reportadas ({selectedPoint.data.needs?.length || 0})
+                    </h4>
+                    {selectedPoint.data.needs && selectedPoint.data.needs.length > 0 ? (
+                      <ScrollArea className="max-h-[180px]">
+                        <div className="flex flex-col gap-2">
+                          {selectedPoint.data.needs.map((need) => (
+                            <div key={need.id} className="bg-white/[0.03] py-2.5 px-3 rounded-lg border border-white/[0.06]">
+                              <div className="flex justify-between items-center mb-2">
+                                {need.urgencyScore >= 80 && (
+                                  <span className="text-red-500 text-[11px] font-bold uppercase bg-red-500/15 py-0.5 px-1.5 rounded">
+                                    INMEDIATO
+                                  </span>
+                                )}
+                                <span className="text-slate-400 text-[11px]">
+                                  Status: {need.status === 'PENDING' ? 'Pendiente' : need.status === 'ALLOCATED' ? 'Asignada' : 'Entregada'}
+                                </span>
+                              </div>
+                              <div className="mt-1 mb-2.5">
+                                <Progress value={need.urgencyScore} className="w-full max-w-sm">
+                                  <ProgressLabel>Urgencia</ProgressLabel>
+                                  {/* <ProgressValue /> */}
+                                </Progress>
+                              </div>
+                              <p className="text-slate-300 text-[13px] mb-1.5 leading-normal">{need.description}</p>
+                              {need.items && need.items.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {need.items.map((item) => (
+                                    <span
+                                      key={item.id}
+                                      className={`need-item-chip ${item.matchedResourceId ? 'matched' : 'pending'} text-[11px] py-0.5 px-1.5 rounded font-medium`}
+                                    >
+                                      {formatNeedItemLabel(item)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <p className="text-slate-500 text-[13px] my-1">No hay solicitudes activas para este centro.</p>
+                    )}
+                  </div>
+                  <hr />
                   <div style={{ marginTop: '12px', marginBottom: '16px' }}>
-                    <Badge variant="secondary" className="point-coords">📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</Badge>
+                    <Button
+                      variant="outline"
+                      className="w-full text-xs flex items-center justify-center gap-2 cursor-pointer"
+                      style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+                      onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${selectedPoint.data.latitude},${selectedPoint.data.longitude}`, '_blank')}
+                    >
+                      <span>Ver en Mapas</span> <ArrowUpRightIcon />
+                    </Button>
                   </div>
 
                   {currentUser && userRoles.includes('NGO') && (
@@ -2463,8 +2556,8 @@ export default function Home() {
                         setActiveTab('ngo');
                         setSelectedPoint(null);
                       }}
-                      className="w-full mt-4"
-                      style={{ background: '#3b82f6' }}
+                      className="w-full mt-1"
+                      style={{ background: '#3b82f6', cursor: 'pointer' }}
                     >
                       ✍️ Crear Solicitud Aquí
                     </Button>
@@ -2474,12 +2567,15 @@ export default function Home() {
                 <>
                   <h3 style={{ color: 'white', fontSize: '18px', marginBottom: '8px' }}>{selectedPoint.data.state} - {selectedPoint.data.sector}</h3>
                   <p className="point-desc" style={{ color: '#cbd5e1', fontSize: '14px', margin: '8px 0' }}><strong>Descripción:</strong> {selectedPoint.data.description}</p>
+                  <div style={{ marginTop: '12px', marginBottom: '16px' }}>
+                    <Progress value={selectedPoint.data.urgencyScore} className="w-full max-w-sm">
+                      <ProgressLabel>Urgencia</ProgressLabel>
+                      {/* <ProgressValue /> */}
+                    </Progress>
+                  </div>
                   <div className="point-meta-row" style={{ display: 'flex', gap: '10px', margin: '12px 0' }}>
-                    <span className={`point-urgency-badge ${selectedPoint.data.urgencyScore >= 80 ? 'high' : 'normal'}`}>
-                      Urgencia: {selectedPoint.data.urgencyScore}
-                    </span>
                     <span className="point-status-badge">
-                      {selectedPoint.data.status === 'PENDING' ? 'Pendiente' : selectedPoint.data.status === 'ALLOCATED' ? 'Asignado' : 'Entregado'}
+                      Status: {selectedPoint.data.status === 'PENDING' ? 'Pendiente' : selectedPoint.data.status === 'ALLOCATED' ? 'Asignado' : 'Entregado'}
                     </span>
                   </div>
                   <p className="point-coords" style={{ color: '#cbd5e1', fontSize: '12px', margin: '8px 0' }}>📍 Coordenadas: {parseFloat(selectedPoint.data.latitude).toFixed(5)}, {parseFloat(selectedPoint.data.longitude).toFixed(5)}</p>
@@ -2868,6 +2964,7 @@ export default function Home() {
           max-height: 100%;
           overflow-y: auto;
           gap: 16px;
+          padding: 8px;
           /* Custom scrollbar */
           scrollbar-width: thin;
           scrollbar-color: rgba(255,255,255,0.1) transparent;
@@ -2897,6 +2994,10 @@ export default function Home() {
           .left-panel, .right-panel {
             width: 100%;
             max-height: none;
+          }
+          .bottom-controls-bar {
+            top: 10px;
+            bottom: auto;
           }
         }
 
