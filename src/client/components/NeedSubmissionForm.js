@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import LocationDropdown from './LocationDropdown';
 import ItemAutocomplete from './ItemAutocomplete';
 
-export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, prefill = null }) {
+export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, onReset, prefill = null }) {
   const [description, setDescription] = useState('');
   const [urgencyRating, setUrgencyRating] = useState(3);
   const [state, setState] = useState(prefill?.state || '');
@@ -36,17 +36,24 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
     }
     if (prefill.latitude != null) setLatitude(prefill.latitude);
     if (prefill.longitude != null) setLongitude(prefill.longitude);
-    if (prefill.state) setState(prefill.state);
-    if (prefill.sector) setSector(prefill.sector);
-    if (prefill.collectionCenterId) setCollectionCenterId(prefill.collectionCenterId);
-    if (prefill.collectionCenterName) setCollectionCenterName(prefill.collectionCenterName);
+    
+    if (prefill.collectionCenterId) {
+      setCollectionCenterId(prefill.collectionCenterId);
+      setCollectionCenterName(prefill.collectionCenterName || '');
+      setState(prefill.state || '');
+      setSector(prefill.sector || '');
+    } else {
+      if (prefill.state) setState(prefill.state);
+      if (prefill.sector) setSector(prefill.sector);
+    }
+    
     if (prefill.description) setDescription(prefill.description);
   }, [prefill]);
 
   useEffect(() => {
-    if (hasPrefillOrigin) return;
+    if (hasPrefillOrigin || prefill?.collectionCenterId) return;
     detectGPS();
-  }, [hasPrefillOrigin]);
+  }, [hasPrefillOrigin, prefill?.collectionCenterId]);
 
   const detectGPS = () => {
     setGpsAttempted(true);
@@ -199,6 +206,10 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
       setDescription('');
       setUrgencyRating(3);
       setSelectedItems([{ itemId: '', itemName: '', category: '', quantity: 1 }]);
+      if (collectionCenterId) {
+        setState('');
+        setSector('');
+      }
       setCollectionCenterId('');
       setCollectionCenterName('');
       if (!hasPrefillOrigin) {
@@ -216,6 +227,25 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
     }
   };
 
+  const handleReset = () => {
+    setDescription('');
+    setUrgencyRating(3);
+    setState('');
+    setSector('');
+    setLatitude(null);
+    setLongitude(null);
+    setCollectionCenterId('');
+    setCollectionCenterName('');
+    setSelectedItems([{ itemId: '', itemName: '', category: '', quantity: 1 }]);
+    setErrors({});
+    setServerMessage('');
+    setServerError('');
+    detectGPS();
+    if (onReset) {
+      onReset();
+    }
+  };
+
   return (
     <div className="need-form-card">
       <h3>Crear Solicitud de Ayuda (Necesidad)</h3>
@@ -225,7 +255,7 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
         <div className="gps-alert" style={{ background: 'var(--primary-glow)', color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}>
           <div className="gps-alert-icon">🏠</div>
           <div className="gps-alert-text">
-            Solicitud desde centro de acopio: <strong>{collectionCenterName}</strong>
+            Solicitud desde centro de acopio: <strong>{collectionCenterName}</strong> {state || sector ? `(${[state, sector].filter(Boolean).join(' - ')})` : ''}
           </div>
         </div>
       )}
@@ -271,21 +301,27 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
           </div>
         </div>
 
-        <LocationDropdown
-          onChange={handleLocationChange}
-          error={errors.state || errors.sector ? 'El estado y el sector son obligatorios.' : null}
-        />
+        {!collectionCenterId && (
+          <>
+            <LocationDropdown
+              state={state}
+              sector={sector}
+              onChange={handleLocationChange}
+              error={errors.state || errors.sector ? 'El estado y el sector son obligatorios.' : null}
+            />
 
-        <div className="gps-status-row">
-          {gpsSuccess && (
-            <span className="gps-success-msg">
-              📍 Ubicación GPS obtenida: {latitude?.toFixed(4)}, {longitude?.toFixed(4)}
-            </span>
-          )}
-          <button type="button" onClick={detectGPS} className="gps-retry-btn">
-            Recargar Ubicación GPS
-          </button>
-        </div>
+            <div className="gps-status-row">
+              {gpsSuccess && (
+                <span className="gps-success-msg">
+                  📍 Ubicación GPS obtenida: {latitude?.toFixed(4)}, {longitude?.toFixed(4)}
+                </span>
+              )}
+              <button type="button" onClick={detectGPS} className="gps-retry-btn">
+                Recargar Ubicación GPS
+              </button>
+            </div>
+          </>
+        )}
 
         <div className="items-section">
           <h4>Ítems Requeridos *</h4>
@@ -321,7 +357,7 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
                   type="button"
                   onClick={() => removeItemRow(index)}
                   disabled={selectedItems.length <= 1}
-                  className="delete-item-btn absolute"
+                  className="delete-item-btn"
                   title="Eliminar ítem"
                 >
                   ✕
@@ -338,9 +374,14 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
         {serverMessage && <div className="alert alert-success">{serverMessage}</div>}
         {serverError && <div className="alert alert-error">{serverError}</div>}
 
-        <button type="submit" className="submit-btn" disabled={loading}>
-          {loading ? 'Procesando...' : 'Enviar Solicitud'}
-        </button>
+        <div className="form-actions">
+          <button type="submit" className="submit-btn" disabled={loading}>
+            {loading ? 'Procesando...' : 'Enviar Solicitud'}
+          </button>
+          <button type="button" onClick={handleReset} className="reset-btn" disabled={loading}>
+            Limpiar Formulario
+          </button>
+        </div>
       </form>
 
       <style jsx>{`
@@ -374,7 +415,7 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
           background-color: var(--bg-body); border: 1px solid var(--border-color);
           border-radius: 6px; color: var(--text-secondary); cursor: pointer;
         }
-        .rating-btn.active.rating-5 { background-color: var(--error-color); color: white; }
+        .rating-btn.active { background-color: var(--error-color); color: white; }
         .gps-status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 12px; }
         .gps-success-msg { color: var(--success-color); font-weight: 500; }
         .gps-retry-btn { background: none; border: none; color: var(--primary-color); font-weight: 600; cursor: pointer; text-decoration: underline; }
@@ -401,9 +442,23 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, pref
         .alert { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
         .alert-success { background-color: var(--success-glow); color: var(--success-color); border: 1px solid var(--success-color); }
         .alert-error { background-color: var(--error-glow); color: var(--error-color); border: 1px solid var(--error-color); }
+        .form-actions {
+          display: flex;
+          gap: 12px;
+          margin-top: 16px;
+        }
         .submit-btn {
-          width: 100%; background-color: var(--primary-color); color: white; border: none;
+          flex: 2; background-color: var(--primary-color); color: white; border: none;
           padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+        }
+        .reset-btn {
+          flex: 1; background-color: transparent; border: 1px solid var(--border-color); color: var(--text-secondary);
+          padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer;
+          transition: background-color 0.2s, color 0.2s;
+        }
+        .reset-btn:hover {
+          background-color: var(--border-color);
+          color: var(--text-primary);
         }
         .error-message { color: var(--error-color); font-size: 12px; }
         .block-error { display: block; margin-bottom: 10px; }

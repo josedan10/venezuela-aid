@@ -1717,6 +1717,7 @@ export default function Home() {
                               ngoId={currentUser?.id}
                               prefill={needPrefill}
                               onNeedSubmitted={() => { refreshNeeds(); setNeedPrefill(null); }}
+                              onReset={() => setNeedPrefill(null)}
                             />
                           </div>
                         ) : (
@@ -2316,26 +2317,28 @@ export default function Home() {
                       </div>
                     </CollapsiblePanel>
 
-                    <CollapsiblePanel
-                      className="status-panel glass-card margin-top"
-                      title="Inventario Disponible"
-                      collapsed={isPanelCollapsed('available-inventory')}
-                      onToggle={() => togglePanelCollapse('available-inventory')}
-                      onRefresh={refreshResources}
-                    >
-                      <div className="resources-list-box">
-                        {resourcesList.map((res) => (
-                          <div key={res.id} className="resource-row">
-                            <div className="resource-meta">
-                              <span className="res-row-name">{res.name}</span>
-                              <span className="res-row-category">{res.category}</span>
+                    {userRoles.includes('DRIVER') && (
+                      <CollapsiblePanel
+                        className="status-panel glass-card margin-top"
+                        title="Inventario Disponible"
+                        collapsed={isPanelCollapsed('available-inventory')}
+                        onToggle={() => togglePanelCollapse('available-inventory')}
+                        onRefresh={refreshResources}
+                      >
+                        <div className="resources-list-box">
+                          {resourcesList.map((res) => (
+                            <div key={res.id} className="resource-row">
+                              <div className="resource-meta">
+                                <span className="res-row-name">{res.name}</span>
+                                <span className="res-row-category">{res.category}</span>
+                              </div>
+                              <span className="res-row-qty">{res.stockQuantity} un.</span>
                             </div>
-                            <span className="res-row-qty">{res.stockQuantity} un.</span>
-                          </div>
-                        ))}
-                        {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
-                      </div>
-                    </CollapsiblePanel>
+                          ))}
+                          {resourcesList.length === 0 && <p className="empty-panel-msg">No hay recursos.</p>}
+                        </div>
+                      </CollapsiblePanel>
+                    )}
                   </>
                 )}
               </div>

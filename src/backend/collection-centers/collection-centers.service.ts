@@ -4,7 +4,7 @@ import { CreateCollectionCenterDto } from './dto/create-collection-center.dto';
 
 @Injectable()
 export class CollectionCentersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(dto: CreateCollectionCenterDto, userId?: string) {
     return this.prisma.collectionCenter.create({
@@ -22,6 +22,10 @@ export class CollectionCentersService {
 
   async findAll() {
     return this.prisma.collectionCenter.findMany({
+      include: {
+        resources: true,
+        needs: true,
+      },
       orderBy: {
         createdAt: 'desc',
       },

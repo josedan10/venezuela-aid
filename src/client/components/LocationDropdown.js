@@ -47,10 +47,23 @@ const VENEZUELA_LOCATIONS = {
   ]
 };
 
-export default function LocationDropdown({ onChange, error = null }) {
-  const [selectedState, setSelectedState] = useState('');
-  const [selectedSector, setSelectedSector] = useState('');
+export default function LocationDropdown({ onChange, error = null, state = '', sector = '' }) {
+  const [selectedState, setSelectedState] = useState(state);
+  const [selectedSector, setSelectedSector] = useState(sector);
   const [sectors, setSectors] = useState([]);
+
+  useEffect(() => {
+    setSelectedState(state);
+    if (state && VENEZUELA_LOCATIONS[state]) {
+      setSectors(VENEZUELA_LOCATIONS[state]);
+    } else {
+      setSectors([]);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    setSelectedSector(sector);
+  }, [sector]);
 
   // When selected state changes, update sectors list and reset selected sector
   const handleStateChange = (e) => {
