@@ -3,6 +3,7 @@ import { TeamsService } from './teams.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { TeamDeliveryPolicy, TeamDriverAccessStatus, TeamRole } from '@prisma/client';
 
 describe('TeamsService', () => {
   let service: TeamsService;
@@ -18,6 +19,11 @@ describe('TeamsService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    teamDriverAccess: {
+      upsert: jest.fn(),
+      findMany: jest.fn(),
     },
   };
 
@@ -67,7 +73,7 @@ describe('TeamsService', () => {
       });
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { teamId: 'team-1' },
+        data: { teamId: 'team-1', teamRole: TeamRole.MANAGER },
       });
     });
 
@@ -96,7 +102,7 @@ describe('TeamsService', () => {
       expect(result.team).toEqual(mockTeam);
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-2' },
-        data: { teamId: 'team-2' },
+        data: { teamId: 'team-2', teamRole: TeamRole.COLLABORATOR },
       });
     });
   });
@@ -112,7 +118,7 @@ describe('TeamsService', () => {
       expect(result.message).toBe('Has salido del equipo con éxito.');
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-2' },
-        data: { teamId: null, shareLocationWithTeam: false },
+        data: { teamId: null, shareLocationWithTeam: false, teamRole: TeamRole.COLLABORATOR },
       });
     });
   });
@@ -139,6 +145,119 @@ describe('TeamsService', () => {
       await expect(service.toggleLocationSharing('user-3', true)).rejects.toThrow(
         new BadRequestException('Debes unirte a un equipo antes de compartir tu ubicación.'),
       );
+    });
+  });
+
+  describe('team settings and driver access', () => {
+    it('should update team settings for the manager', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        teamId: 'team-1',
+        teamRole: TeamRole.MANAGER,
+        team: { id: 'team-1', creatorId: 'user-1' },
+      });
+      mockPrisma.team.update.mockResolvedValue({
+        id: 'team-1',
+        name: 'Nuevo nombre',
+        description: 'Nueva desc',
+        deliveryPolicy: TeamDeliveryPolicy.TEAM_AND_APPROVED_EXTERNAL,
+      });
+
+      const result = await service.updateMyTeamSettings('user-1', {
+        name: 'Nuevo nombre',
+        description: 'Nueva desc',
+        deliveryPolicy: TeamDeliveryPolicy.TEAM_AND_APPROVED_EXTERNAL,
+      });
+
+      expect(result.message).toBe('Ajustes del equipo actualizados con éxito.');
+      expect(prisma.team.update).toHaveBeenCalledWith({
+        where: { id: 'team-1' },
+        data: {
+          name: 'Nuevo nombre',
+          description: 'Nueva desc',
+          deliveryPolicy: TeamDeliveryPolicy.TEAM_AND_APPROVED_EXTERNAL,
+        },
+      });
+    });
+
+    it('should approve a driver access request for the manager', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          teamId: 'team-1',
+          teamRole: TeamRole.MANAGER,
+          team: { id: 'team-1', creatorId: 'user-1' },
+        })
+        .mockResolvedValueOnce({
+          id: 'driver-1',
+          roles: 'DRIVER',
+        });
+      mockPrisma.teamDriverAccess.upsert.mockResolvedValue({
+        id: 'access-1',
+        teamId: 'team-1',
+        driverId: 'driver-1',
+        status: TeamDriverAccessStatus.APPROVED,
+      });
+
+      const result = await service.approveDriverAccess('user-1', 'driver-1');
+
+      expect(result.message).toBe('El conductor fue aprobado para este equipo.');
+      expect(prisma.teamDriverAccess.upsert).toHaveBeenCalledWith({
+        where: {
+          teamId_driverId: {
+            teamId: 'team-1',
+            driverId: 'driver-1',
+          },
+        },
+        create: {
+          teamId: 'team-1',
+          driverId: 'driver-1',
+          status: TeamDriverAccessStatus.APPROVED,
+          approvedById: 'user-1',
+        },
+        update: {
+          status: TeamDriverAccessStatus.APPROVED,
+          approvedById: 'user-1',
+        },
+      });
+    });
+
+    it('should reject approval when the target user is not a driver', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          teamId: 'team-1',
+          teamRole: TeamRole.MANAGER,
+          team: { id: 'team-1', creatorId: 'user-1' },
+        })
+        .mockResolvedValueOnce({
+          id: 'user-x',
+          roles: 'DONOR',
+        });
+
+      await expect(service.approveDriverAccess('user-1', 'user-x')).rejects.toThrow(
+        new BadRequestException('El usuario indicado no tiene rol de conductor.'),
+      );
+      expect(prisma.teamDriverAccess.upsert).not.toHaveBeenCalled();
+    });
+
+    it('should reject driver access changes when the target user is not a driver', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          teamId: 'team-1',
+          teamRole: TeamRole.MANAGER,
+          team: { id: 'team-1', creatorId: 'user-1' },
+        })
+        .mockResolvedValueOnce({
+          id: 'user-y',
+          roles: 'DONOR',
+        });
+
+      await expect(service.rejectDriverAccess('user-1', 'user-y')).rejects.toThrow(
+        new BadRequestException('El usuario indicado no tiene rol de conductor.'),
+      );
+      expect(prisma.teamDriverAccess.upsert).not.toHaveBeenCalled();
     });
   });
 });
