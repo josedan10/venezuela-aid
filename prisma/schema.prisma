@@ -29,6 +29,22 @@ enum VehicleCategory {
   TRUCK
 }
 
+enum TeamRole {
+  MANAGER
+  COLLABORATOR
+}
+
+enum TeamDeliveryPolicy {
+  TEAM_ONLY
+  TEAM_AND_APPROVED_EXTERNAL
+}
+
+enum TeamDriverAccessStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id                String             @id @default(uuid())
   firebaseId        String             @unique
@@ -44,10 +60,13 @@ model User {
   dispatches        DispatchTask[]     @relation("DriverDispatches")
   collectionCenters CollectionCenter[] @relation("UserCollectionCenters")
   donatedResources  Resource[]         @relation("DonorResources")
+  teamRole          TeamRole           @default(COLLABORATOR)
   teamId            String?
   team              Team?              @relation("TeamMembers", fields: [teamId], references: [id])
   createdTeams      Team[]             @relation("TeamCreator")
   shareLocationWithTeam Boolean          @default(false)
+  teamDriverAccessRequests TeamDriverAccess[] @relation("TeamDriverAccessDriver")
+  teamDriverAccessApprovals TeamDriverAccess[] @relation("TeamDriverAccessApprover")
 }
 
 model DriverDetails {
@@ -212,6 +231,23 @@ model Team {
   creatorId   String
   creator     User     @relation("TeamCreator", fields: [creatorId], references: [id])
   members     User[]   @relation("TeamMembers")
+  deliveryPolicy TeamDeliveryPolicy @default(TEAM_ONLY)
+  driverAccessRequests TeamDriverAccess[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model TeamDriverAccess {
+  id          String                @id @default(uuid())
+  teamId      String
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      User                  @relation("TeamDriverAccessDriver", fields: [driverId], references: [id])
+  status      TeamDriverAccessStatus @default(PENDING)
+  approvedById String?
+  approvedBy  User?                 @relation("TeamDriverAccessApprover", fields: [approvedById], references: [id])
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([teamId, driverId])
 }

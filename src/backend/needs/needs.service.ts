@@ -4,12 +4,14 @@ import { MatchingService } from '../matching/matching.service';
 import { CreateNeedDto } from './dto/create-need.dto';
 import { NeedStatus } from '@prisma/client';
 import { getDistanceKm } from '../common/geo.util';
+import { DispatchService } from '../dispatch/dispatch.service';
 
 @Injectable()
 export class NeedsService {
   constructor(
     private prisma: PrismaService,
     private matchingService: MatchingService,
+    private dispatchService: DispatchService,
   ) {}
 
   async createNeed(ngoId: string, dto: CreateNeedDto) {
@@ -80,6 +82,17 @@ export class NeedsService {
       };
     });
 
+    let dispatchResult = null;
+    if (matchResult?.matched > 0) {
+      dispatchResult = await this.dispatchService.createDispatchTask(need.id).catch((err) => {
+        console.error(`[NeedsService] Dispatch proposal failed for need ${need.id}:`, err);
+        return {
+          success: false,
+          message: 'No se pudo generar la propuesta de despacho automáticamente.',
+        };
+      });
+    }
+
     const enrichedNeed = await this.getNeedById(need.id);
 
     const message = isImmediate
@@ -90,6 +103,7 @@ export class NeedsService {
       message,
       need: enrichedNeed,
       matching: matchResult,
+      dispatch: dispatchResult,
       urgencyScore: need.urgencyScore,
     };
   }

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { ResourcesService } from '../resources/resources.service';
 import { DispatchGateway } from './dispatch.gateway';
-import { DispatchStatus, NeedStatus, DriverStatus, DispatchTask } from '@prisma/client';
+import { DispatchStatus, NeedStatus, DriverStatus, DispatchTask, TeamDeliveryPolicy, TeamDriverAccessStatus } from '@prisma/client';
 import { Role } from '../users/role.enum';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 import { getDistanceKm } from '../common/geo.util';
@@ -20,6 +20,15 @@ export class DispatchService implements OnModuleInit {
     @Inject(forwardRef(() => DispatchGateway))
     private dispatchGateway: DispatchGateway,
   ) {}
+
+  private async getApprovedTeamDrivers(teamId: string) {
+    const approvals = await this.prisma.teamDriverAccess.findMany({
+      where: { teamId, status: TeamDriverAccessStatus.APPROVED },
+      select: { driverId: true },
+    });
+
+    return new Set(approvals.map((approval) => approval.driverId));
+  }
 
   onModuleInit() {
     // 60-second acceptance timeout loop running every 5 seconds
@@ -38,11 +47,43 @@ export class DispatchService implements OnModuleInit {
   }
 
   async createDispatchTask(needId: string) {
+    const preExistingTask = await this.prisma.dispatchTask.findFirst({
+      where: {
+        needId,
+        status: {
+          in: [
+            DispatchStatus.PROPOSED,
+            DispatchStatus.ACCEPTED,
+            DispatchStatus.EN_ROUTE,
+            DispatchStatus.ALERTA_CONEXION,
+          ],
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (preExistingTask) {
+      return {
+        success: true,
+        message: 'Ya existe un despacho activo para esta necesidad.',
+        task: preExistingTask,
+        created: false,
+      };
+    }
+
     const need = await this.prisma.need.findUnique({
       where: { id: needId },
       include: {
         items: { include: { item: true, matchedResource: { include: { item: true } } } },
         collectionCenter: true,
+        ngo: {
+          select: {
+            id: true,
+            teamId: true,
+          },
+        },
       },
     });
 
@@ -67,11 +108,33 @@ export class DispatchService implements OnModuleInit {
     const attemptedDriversKey = `dispatch:${needId}:attempts`;
     const attemptedDrivers = await this.redisService.getClient().smembers(attemptedDriversKey);
 
+    let teamId = need.ngo?.teamId ?? null;
+    let teamDeliveryPolicy: TeamDeliveryPolicy | null = null;
+    let approvedDrivers = new Set<string>();
+
+    if (teamId) {
+      const team = await this.prisma.team.findUnique({
+        where: { id: teamId },
+        select: { id: true, deliveryPolicy: true },
+      });
+
+      if (team) {
+        teamDeliveryPolicy = team.deliveryPolicy;
+        approvedDrivers = await this.getApprovedTeamDrivers(team.id);
+      } else {
+        teamId = null;
+      }
+    }
+
     // Find drivers near the origin point, respecting each driver's alert radius
     const nearbyDriverIds = await this.redisService.findNearbyDrivers(originLat, originLng, 100);
 
-    let selectedDriverId: string | null = null;
-    let selectedDriverRadius = 15;
+    const eligibleDrivers: Array<{
+      driverId: string;
+      driverRadius: number;
+      distanceKm: number;
+      teamPriority: number;
+    }> = [];
 
     for (const driverId of nearbyDriverIds) {
       if (attemptedDrivers.includes(driverId)) {
@@ -110,37 +173,126 @@ export class DispatchService implements OnModuleInit {
         continue;
       }
 
-      selectedDriverId = driverId;
-      selectedDriverRadius = driverRadius;
-      break;
+      if (teamId) {
+        const isTeamMember = driverUser.teamId === teamId;
+        const hasApproval = approvedDrivers.has(driverId);
+
+        if (teamDeliveryPolicy === TeamDeliveryPolicy.TEAM_ONLY) {
+          if (!isTeamMember) {
+            continue;
+          }
+        } else if (teamDeliveryPolicy === TeamDeliveryPolicy.TEAM_AND_APPROVED_EXTERNAL) {
+          if (!isTeamMember && !hasApproval) {
+            continue;
+          }
+        }
+
+        eligibleDrivers.push({
+          driverId,
+          driverRadius,
+          distanceKm: distToOrigin,
+          teamPriority: isTeamMember ? 0 : 1,
+        });
+        continue;
+      }
+
+      eligibleDrivers.push({
+        driverId,
+        driverRadius,
+        distanceKm: distToOrigin,
+        teamPriority: 1,
+      });
     }
 
-    if (!selectedDriverId) {
+    eligibleDrivers.sort((a, b) => a.teamPriority - b.teamPriority || a.distanceKm - b.distanceKm);
+
+    const selectedDriver = eligibleDrivers[0];
+
+    if (!selectedDriver) {
       return {
         success: false,
-        message: 'No se encontraron conductores disponibles dentro de su radio de alerta cerca del punto de origen.',
+        message: teamId
+          ? 'No se encontraron conductores aprobados para este equipo dentro del radio de alerta.'
+          : 'No se encontraron conductores disponibles dentro de su radio de alerta cerca del punto de origen.',
       };
     }
 
     const timeoutAt = new Date();
     timeoutAt.setSeconds(timeoutAt.getSeconds() + 60);
 
-    const task = await this.prisma.dispatchTask.create({
-      data: {
-        needId,
-        driverId: selectedDriverId,
-        status: DispatchStatus.PROPOSED,
-        timeoutAt,
-        pickupLatitude: originLat,
-        pickupLongitude: originLng,
-        pickupLabel,
-      },
+    const taskResult = await this.prisma.$transaction(async (tx) => {
+      // Lock the parent need row so only one active dispatch can be created at a time.
+      await tx.$queryRaw`
+        SELECT id FROM Need WHERE id = ${needId} FOR UPDATE
+      `;
+
+      const activeTask = await tx.dispatchTask.findFirst({
+        where: {
+          needId,
+          status: {
+            in: [
+              DispatchStatus.PROPOSED,
+              DispatchStatus.ACCEPTED,
+              DispatchStatus.EN_ROUTE,
+              DispatchStatus.ALERTA_CONEXION,
+            ],
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (activeTask) {
+        return {
+          success: true,
+          message: 'Ya existe un despacho activo para esta necesidad.',
+          task: activeTask,
+          created: false,
+        };
+      }
+
+      const currentNeed = await tx.need.findUnique({
+        where: { id: needId },
+        select: { status: true },
+      });
+
+      if (!currentNeed) {
+        throw new NotFoundException('Necesidad no encontrada.');
+      }
+
+      if (currentNeed.status !== NeedStatus.PENDING) {
+        throw new BadRequestException('Esta necesidad ya no está pendiente.');
+      }
+
+      const task = await tx.dispatchTask.create({
+        data: {
+          needId,
+          driverId: selectedDriver.driverId,
+          status: DispatchStatus.PROPOSED,
+          timeoutAt,
+          pickupLatitude: originLat,
+          pickupLongitude: originLng,
+          pickupLabel,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Propuesta de despacho enviada al conductor más cercano al punto de origen.',
+        task,
+        created: true,
+      };
     });
 
-    await this.redisService.getClient().sadd(attemptedDriversKey, selectedDriverId);
+    if (!taskResult.created) {
+      return taskResult;
+    }
+
+    await this.redisService.getClient().sadd(attemptedDriversKey, selectedDriver.driverId);
     await this.redisService.getClient().expire(attemptedDriversKey, 3600);
 
-    const proposalKey = `dispatch:${task.id}:proposal`;
+    const proposalKey = `dispatch:${taskResult.task.id}:proposal`;
     await this.redisService.getClient().set(proposalKey, 'PROPOSED', 'EX', 60);
 
     const matchedItems = need.items
@@ -153,8 +305,8 @@ export class DispatchService implements OnModuleInit {
         pickupDistanceKm: item.pickupDistanceKm,
       }));
 
-    this.dispatchGateway.sendProposalToDriver(selectedDriverId, {
-      taskId: task.id,
+    this.dispatchGateway.sendProposalToDriver(selectedDriver.driverId, {
+      taskId: taskResult.task.id,
       description: need.description,
       timeoutSeconds: 60,
       origin: {
@@ -168,13 +320,13 @@ export class DispatchService implements OnModuleInit {
         label: `${need.state} - ${need.sector}`,
       },
       matchedItems,
-      driverRadiusKm: selectedDriverRadius,
+      driverRadiusKm: selectedDriver.driverRadius,
     });
 
     return {
       success: true,
       message: 'Propuesta de despacho enviada al conductor más cercano al punto de origen.',
-      task,
+      task: taskResult.task,
     };
   }
 

@@ -20,6 +20,15 @@ La plataforma está diseñada para ser altamente resiliente ante conexiones ines
 
 ---
 
+## Contrato de Integración para Frontend
+
+La documentación formal de integración está en:
+
+- [`docs/api/dispatch-flow.md`](docs/api/dispatch-flow.md)
+- [`docs/api/team-settings.md`](docs/api/team-settings.md)
+
+---
+
 ## Tecnologías Utilizadas
 
 - **Backend**: [NestJS](https://nestjs.com/) (Node.js framework), TypeScript.
@@ -137,4 +146,3 @@ El proyecto incluye soporte nativo para despliegue contenerizado y enrutamiento 
    docker compose -f docker-compose.prod.yml up -d --build
    ```
 4. Traefik detectará automáticamente los contenedores de la aplicación y configurará la redirección HTTPS de forma transparente.
-
