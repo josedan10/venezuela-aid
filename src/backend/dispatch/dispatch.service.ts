@@ -47,7 +47,7 @@ export class DispatchService implements OnModuleInit {
   }
 
   async createDispatchTask(needId: string) {
-    const activeTask = await this.prisma.dispatchTask.findFirst({
+    const preExistingTask = await this.prisma.dispatchTask.findFirst({
       where: {
         needId,
         status: {
@@ -64,11 +64,12 @@ export class DispatchService implements OnModuleInit {
       },
     });
 
-    if (activeTask) {
+    if (preExistingTask) {
       return {
         success: true,
         message: 'Ya existe un despacho activo para esta necesidad.',
-        task: activeTask,
+        task: preExistingTask,
+        created: false,
       };
     }
 
@@ -177,11 +178,11 @@ export class DispatchService implements OnModuleInit {
         const hasApproval = approvedDrivers.has(driverId);
 
         if (teamDeliveryPolicy === TeamDeliveryPolicy.TEAM_ONLY) {
-          if (!isTeamMember || !hasApproval) {
+          if (!isTeamMember) {
             continue;
           }
         } else if (teamDeliveryPolicy === TeamDeliveryPolicy.TEAM_AND_APPROVED_EXTERNAL) {
-          if (!hasApproval) {
+          if (!isTeamMember && !hasApproval) {
             continue;
           }
         }
@@ -219,22 +220,79 @@ export class DispatchService implements OnModuleInit {
     const timeoutAt = new Date();
     timeoutAt.setSeconds(timeoutAt.getSeconds() + 60);
 
-    const task = await this.prisma.dispatchTask.create({
-      data: {
-        needId,
-        driverId: selectedDriver.driverId,
-        status: DispatchStatus.PROPOSED,
-        timeoutAt,
-        pickupLatitude: originLat,
-        pickupLongitude: originLng,
-        pickupLabel,
-      },
+    const taskResult = await this.prisma.$transaction(async (tx) => {
+      // Lock the parent need row so only one active dispatch can be created at a time.
+      await tx.$queryRaw`
+        SELECT id FROM Need WHERE id = ${needId} FOR UPDATE
+      `;
+
+      const activeTask = await tx.dispatchTask.findFirst({
+        where: {
+          needId,
+          status: {
+            in: [
+              DispatchStatus.PROPOSED,
+              DispatchStatus.ACCEPTED,
+              DispatchStatus.EN_ROUTE,
+              DispatchStatus.ALERTA_CONEXION,
+            ],
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (activeTask) {
+        return {
+          success: true,
+          message: 'Ya existe un despacho activo para esta necesidad.',
+          task: activeTask,
+          created: false,
+        };
+      }
+
+      const currentNeed = await tx.need.findUnique({
+        where: { id: needId },
+        select: { status: true },
+      });
+
+      if (!currentNeed) {
+        throw new NotFoundException('Necesidad no encontrada.');
+      }
+
+      if (currentNeed.status !== NeedStatus.PENDING) {
+        throw new BadRequestException('Esta necesidad ya no está pendiente.');
+      }
+
+      const task = await tx.dispatchTask.create({
+        data: {
+          needId,
+          driverId: selectedDriver.driverId,
+          status: DispatchStatus.PROPOSED,
+          timeoutAt,
+          pickupLatitude: originLat,
+          pickupLongitude: originLng,
+          pickupLabel,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Propuesta de despacho enviada al conductor más cercano al punto de origen.',
+        task,
+        created: true,
+      };
     });
+
+    if (!taskResult.created) {
+      return taskResult;
+    }
 
     await this.redisService.getClient().sadd(attemptedDriversKey, selectedDriver.driverId);
     await this.redisService.getClient().expire(attemptedDriversKey, 3600);
 
-    const proposalKey = `dispatch:${task.id}:proposal`;
+    const proposalKey = `dispatch:${taskResult.task.id}:proposal`;
     await this.redisService.getClient().set(proposalKey, 'PROPOSED', 'EX', 60);
 
     const matchedItems = need.items
@@ -248,7 +306,7 @@ export class DispatchService implements OnModuleInit {
       }));
 
     this.dispatchGateway.sendProposalToDriver(selectedDriver.driverId, {
-      taskId: task.id,
+      taskId: taskResult.task.id,
       description: need.description,
       timeoutSeconds: 60,
       origin: {
@@ -268,7 +326,7 @@ export class DispatchService implements OnModuleInit {
     return {
       success: true,
       message: 'Propuesta de despacho enviada al conductor más cercano al punto de origen.',
-      task,
+      task: taskResult.task,
     };
   }
 

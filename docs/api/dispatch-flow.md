@@ -10,14 +10,14 @@ Backend responsibilities:
 1. Create the need.
 2. Match resources to the need.
 3. Automatically generate a dispatch proposal when at least one item is matched.
-4. Send the proposal to the closest verified and available driver.
+4. Prefer approved team drivers first when the need belongs to a team, then apply the team delivery policy to decide whether approved external drivers are eligible, and finally select the best available driver by proximity within the eligible set.
 5. Accept, reject, timeout, reconnect, and finalize delivery.
 
 ### Team-aware dispatch selection
 
 If the need creator belongs to a team:
 
-- the backend prefers approved drivers from that team first
+- the backend prefers team members first when they are eligible for delivery
 - the team delivery policy decides whether approved external drivers are allowed
 - the frontend should use the team settings screen to control those rules
 

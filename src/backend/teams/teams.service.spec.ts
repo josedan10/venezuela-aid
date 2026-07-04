@@ -181,12 +181,17 @@ describe('TeamsService', () => {
     });
 
     it('should approve a driver access request for the manager', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        teamId: 'team-1',
-        teamRole: TeamRole.MANAGER,
-        team: { id: 'team-1', creatorId: 'user-1' },
-      });
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          teamId: 'team-1',
+          teamRole: TeamRole.MANAGER,
+          team: { id: 'team-1', creatorId: 'user-1' },
+        })
+        .mockResolvedValueOnce({
+          id: 'driver-1',
+          roles: 'DRIVER',
+        });
       mockPrisma.teamDriverAccess.upsert.mockResolvedValue({
         id: 'access-1',
         teamId: 'team-1',
@@ -215,6 +220,44 @@ describe('TeamsService', () => {
           approvedById: 'user-1',
         },
       });
+    });
+
+    it('should reject approval when the target user is not a driver', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          teamId: 'team-1',
+          teamRole: TeamRole.MANAGER,
+          team: { id: 'team-1', creatorId: 'user-1' },
+        })
+        .mockResolvedValueOnce({
+          id: 'user-x',
+          roles: 'DONOR',
+        });
+
+      await expect(service.approveDriverAccess('user-1', 'user-x')).rejects.toThrow(
+        new BadRequestException('El usuario indicado no tiene rol de conductor.'),
+      );
+      expect(prisma.teamDriverAccess.upsert).not.toHaveBeenCalled();
+    });
+
+    it('should reject driver access changes when the target user is not a driver', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-1',
+          teamId: 'team-1',
+          teamRole: TeamRole.MANAGER,
+          team: { id: 'team-1', creatorId: 'user-1' },
+        })
+        .mockResolvedValueOnce({
+          id: 'user-y',
+          roles: 'DONOR',
+        });
+
+      await expect(service.rejectDriverAccess('user-1', 'user-y')).rejects.toThrow(
+        new BadRequestException('El usuario indicado no tiene rol de conductor.'),
+      );
+      expect(prisma.teamDriverAccess.upsert).not.toHaveBeenCalled();
     });
   });
 });

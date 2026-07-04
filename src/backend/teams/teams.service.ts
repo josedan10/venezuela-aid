@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TeamDeliveryPolicy, TeamDriverAccessStatus, TeamRole } from '@prisma/client';
+import { Role } from '../users/role.enum';
 
 @Injectable()
 export class TeamsService {
@@ -169,6 +170,22 @@ export class TeamsService {
     }
 
     return { user, team: user.team };
+  }
+
+  private async getDriverUserOrThrow(driverId: string) {
+    const driver = await this.prisma.user.findUnique({
+      where: { id: driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Conductor no encontrado.');
+    }
+
+    if (!driver.roles.split(',').includes(Role.DRIVER)) {
+      throw new BadRequestException('El usuario indicado no tiene rol de conductor.');
+    }
+
+    return driver;
   }
 
   async updateMyTeamSettings(
@@ -398,6 +415,7 @@ export class TeamsService {
 
   async approveDriverAccess(userId: string, driverId: string) {
     const { user, team } = await this.getManagedTeamOrThrow(userId);
+    await this.getDriverUserOrThrow(driverId);
 
     const access = await this.prisma.teamDriverAccess.upsert({
       where: {
@@ -426,6 +444,7 @@ export class TeamsService {
 
   async rejectDriverAccess(userId: string, driverId: string) {
     const { user, team } = await this.getManagedTeamOrThrow(userId);
+    await this.getDriverUserOrThrow(driverId);
 
     const access = await this.prisma.teamDriverAccess.upsert({
       where: {
