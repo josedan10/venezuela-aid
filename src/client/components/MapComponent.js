@@ -78,6 +78,7 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
 
       // Cleanup previous click listeners to prevent duplicates
       map.off('click');
+      map.off('popupopen');
 
       // Bind map click listener if onMapClick callback is provided
       if (onMapClick) {
@@ -85,6 +86,30 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
           onMapClick(e.latlng.lat, e.latlng.lng);
         });
       }
+
+      // Bind popupopen listener to attach click event to 'Ver Más' buttons in popups
+      map.on('popupopen', (e) => {
+        const container = e.popup.getElement();
+        if (!container) return;
+        const btn = container.querySelector('.ver-mas-btn');
+        if (btn) {
+          const type = btn.getAttribute('data-type');
+          const id = btn.getAttribute('data-id');
+          btn.onclick = () => {
+            if (type === 'center') {
+              const center = collectionCenters.find(c => String(c.id) === String(id));
+              if (center && onPointClick) {
+                onPointClick({ type: 'center', data: center });
+              }
+            } else if (type === 'need') {
+              const need = needs.find(n => String(n.id) === String(id));
+              if (need && onPointClick) {
+                onPointClick({ type: 'need', data: need });
+              }
+            }
+          };
+        }
+      });
 
       const bounds = [];
 
@@ -187,23 +212,20 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
                   ${isHigh ? '🚨 ATENCIÓN INMEDIATA' : `Prioridad: ${need.urgencyScore}`}
                 </div>
                 <div class="popup-status">
-                  <strong>Estado:</strong> ${
-                    need.status === 'PENDING'
-                      ? 'Abierta/Pendiente'
-                      : need.status === 'ALLOCATED'
-                      ? 'Asignada / En Ruta'
-                      : 'Entregado'
-                  }
+                  <strong>Estado:</strong> ${need.status === 'PENDING'
+                ? 'Abierta/Pendiente'
+                : need.status === 'ALLOCATED'
+                  ? 'Asignada / En Ruta'
+                  : 'Entregado'
+              }
+                </div>
+                <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                  <button class="bg-blue-500 text-white px-3 py-1 rounded ver-mas-btn" data-type="need" data-id="${need.id}">Ver Más</button>
                 </div>
               </div>
             `;
 
             marker.bindPopup(popupContent);
-            marker.on('click', () => {
-              if (onPointClick) {
-                onPointClick({ type: 'need', data: need });
-              }
-            });
             marker.addTo(markersGroup);
             bounds.push([lat, lng]);
           }
@@ -225,15 +247,13 @@ export default function MapComponent({ needs, collectionCenters, driverLocation,
                 <p class="popup-desc">${center.description}</p>
                 <div class="popup-services"><strong>Servicios:</strong> ${center.services}</div>
                 ${center.address ? `<div class="popup-address"><strong>Dirección:</strong> ${center.address}</div>` : ''}
+                <div style="display: flex; justify-content: flex-end;">
+                  <button class="bg-blue-500 text-white px-3 py-1 rounded ver-mas-btn" data-type="center" data-id="${center.id}">Ver Más</button>
+                </div>
               </div>
             `;
 
             marker.bindPopup(popupContent);
-            marker.on('click', () => {
-              if (onPointClick) {
-                onPointClick({ type: 'center', data: center });
-              }
-            });
             marker.addTo(markersGroup);
             bounds.push([lat, lng]);
           }
