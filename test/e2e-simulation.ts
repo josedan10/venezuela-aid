@@ -102,7 +102,7 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
       .useValue({
         canActivate: (context: any) => {
           const req = context.switchToHttp().getRequest();
-          req.user = { id: req.body.driverId || req.body.targetDriverId || 'driver-e2e' };
+          req.user = { id: req.body.driverId || 'driver-e2e' };
           return true;
         },
       })
@@ -155,8 +155,8 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
       items: [],
     };
     mockPrismaService.need.findUnique.mockResolvedValue(mockNeed);
-    mockRedisClient.smembers.mockResolvedValueOnce([]); // no attempts yet
-    mockRedisService.findNearbyDrivers.mockResolvedValueOnce([driverId]);
+    mockRedisClient.smembers.mockResolvedValue([]); // no attempts yet
+    mockRedisService.findNearbyDrivers.mockResolvedValue([driverId]);
     mockPrismaService.user.findUnique.mockResolvedValue({
       id: driverId,
       roles: 'DRIVER',
@@ -193,6 +193,34 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
     const proposalReceived = await proposalPromise;
     expect(proposalReceived.taskId).toBe(taskId);
     expect(proposalReceived.description).toBe(mockNeed.description);
+
+    // Negative test: attempt to target a different driver ID ('unauthorized-driver') via propose REST body
+    // The backend should ignore the body's targetDriverId and propose to the authenticated user ('driver-e2e')
+    mockPrismaService.dispatchTask.create.mockClear();
+    mockPrismaService.dispatchTask.create.mockResolvedValueOnce({
+      id: 'task-unauthorized',
+      needId,
+      driverId: 'driver-e2e',
+      status: DispatchStatus.PROPOSED,
+      timeoutAt: new Date(Date.now() + 60000),
+    });
+
+    const unauthorizedProposeResponse = await fetch(`http://localhost:${port}/dispatch/propose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ needId, targetDriverId: 'unauthorized-driver' }),
+    });
+
+    const unauthorizedProposeResult = await unauthorizedProposeResponse.json();
+    expect(unauthorizedProposeResult.success).toBe(true);
+    // Verify that the task created uses 'driver-e2e' (authenticated user) and NOT the targetDriverId from body
+    expect(mockPrismaService.dispatchTask.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          driverId: 'driver-e2e',
+        }),
+      }),
+    );
 
     // 5. Simulate CONNECTION LOSS (disconnect socket)
     const disconnectPromise = new Promise<void>((resolve) => {

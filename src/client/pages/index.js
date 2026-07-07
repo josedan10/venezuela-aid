@@ -1627,7 +1627,7 @@ export default function Home() {
       <div className="floating-ui-container">
 
         {/* GLOBAL DISPATCH PROPOSAL NOTIFICATION */}
-        {activeProposal && (
+        {activeProposal && activeTab !== 'driver' && (
           <div className="global-proposal-alert glass animate-slide-up">
             <div className="global-proposal-header">
               <span className="global-proposal-badge">🚨 PROPUESTA DE DESPACHO</span>

@@ -232,12 +232,18 @@ export class DispatchService implements OnModuleInit {
 
     eligibleDrivers.sort((a, b) => a.teamPriority - b.teamPriority || a.distanceKm - b.distanceKm);
 
-    let selectedDriver = eligibleDrivers[0];
+    let selectedDriver = null;
     if (targetDriverId) {
       const targetDriver = eligibleDrivers.find((d) => d.driverId === targetDriverId);
-      if (targetDriver) {
-        selectedDriver = targetDriver;
+      if (!targetDriver) {
+        return {
+          success: false,
+          message: 'El conductor solicitado no está disponible o no se encuentra cerca.',
+        };
       }
+      selectedDriver = targetDriver;
+    } else {
+      selectedDriver = eligibleDrivers[0];
     }
 
     if (!selectedDriver) {
