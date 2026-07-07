@@ -194,11 +194,29 @@ export default function NeedSubmissionForm({ token, ngoId, onNeedSubmitted, onRe
       }
 
       if (data.urgencyScore >= 80) {
-        setServerMessage('Solicitud registrada con prioridad crítica (ATENCIÓN INMEDIATA).');
+        if (data.dispatch && data.dispatch.success === false) {
+          setServerError(`ATENCIÓN INMEDIATA: Solicitud registrada con prioridad crítica, pero no se pudo asignar un conductor automáticamente: ${data.dispatch.message}`);
+        } else if (data.dispatch && data.dispatch.success === true) {
+          setServerMessage(`ATENCIÓN INMEDIATA: Solicitud registrada con prioridad crítica. Despacho asignado: ${data.dispatch.message}`);
+        } else {
+          setServerMessage('Solicitud registrada con prioridad crítica (ATENCIÓN INMEDIATA).');
+        }
       } else if (data.matching?.matched > 0) {
-        setServerMessage(
-          `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} ítems emparejados cerca del punto de origen.`,
-        );
+        if (data.dispatch) {
+          if (data.dispatch.success) {
+            setServerMessage(
+              `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} ítems emparejados. Despacho propuesto: ${data.dispatch.message}`
+            );
+          } else {
+            setServerError(
+              `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} ítems emparejados. Advertencia de asignación: ${data.dispatch.message}`
+            );
+          }
+        } else {
+          setServerMessage(
+            `${data.message || 'Solicitud registrada.'} ${data.matching.matched}/${data.matching.total} ítems emparejados cerca del punto de origen.`
+          );
+        }
       } else {
         setServerMessage(data.message || 'Solicitud registrada exitosamente.');
       }

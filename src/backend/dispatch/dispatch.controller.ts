@@ -1,15 +1,23 @@
-import { Controller, Post, Body, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { DispatchService } from './dispatch.service';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
+import { FirebaseAuthGuard } from '../users/firebase-auth.guard';
 
 @Controller('dispatch')
 export class DispatchController {
   constructor(private readonly dispatchService: DispatchService) {}
 
-  @Post('propose')
-  async propose(@Body() body: { needId: string }) {
-    return this.dispatchService.createDispatchTask(body.needId);
+  @UseGuards(FirebaseAuthGuard)
+  @Get('active')
+  async getActiveTask(@Request() req: any) {
+    return this.dispatchService.getActiveTaskForDriver(req.user.id);
   }
+
+  @Post('propose')
+  async propose(@Body() body: { needId: string; targetDriverId?: string }) {
+    return this.dispatchService.createDispatchTask(body.needId, body.targetDriverId);
+  }
+
 
   @Post('accept')
   async accept(@Body() body: { driverId: string; taskId: string }) {

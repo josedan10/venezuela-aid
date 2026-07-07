@@ -46,7 +46,7 @@ export class DispatchService implements OnModuleInit {
     }, 30000);
   }
 
-  async createDispatchTask(needId: string) {
+  async createDispatchTask(needId: string, targetDriverId?: string) {
     const preExistingTask = await this.prisma.dispatchTask.findFirst({
       where: {
         needId,
@@ -128,6 +128,9 @@ export class DispatchService implements OnModuleInit {
 
     // Find drivers near the origin point, respecting each driver's alert radius
     const nearbyDriverIds = await this.redisService.findNearbyDrivers(originLat, originLng, 100);
+    if (targetDriverId && !nearbyDriverIds.includes(targetDriverId)) {
+      nearbyDriverIds.push(targetDriverId);
+    }
 
     const eligibleDrivers: Array<{
       driverId: string;
@@ -155,21 +158,29 @@ export class DispatchService implements OnModuleInit {
         continue;
       }
 
-      const availability = await this.redisService.getDriverAvailability(driverId);
-      if (availability !== 'Disponible') {
-        continue;
+      const isTarget = driverId === targetDriverId;
+
+      if (!isTarget) {
+        const availability = await this.redisService.getDriverAvailability(driverId);
+        if (availability !== 'Disponible') {
+          continue;
+        }
       }
 
       const driverRadius = driverUser.alertRadiusKm ?? 15;
       const positions = await this.redisService.getClient().geopos('drivers:locations', driverId);
       const driverPos = positions?.[0];
       if (!driverPos || driverPos[0] == null || driverPos[1] == null) {
-        continue;
+        if (!isTarget) {
+          continue;
+        }
       }
-      const driverLng = parseFloat(String(driverPos[0]));
-      const driverLat = parseFloat(String(driverPos[1]));
+
+      const driverLng = driverPos?.[0] ? parseFloat(String(driverPos[0])) : originLng;
+      const driverLat = driverPos?.[1] ? parseFloat(String(driverPos[1])) : originLat;
       const distToOrigin = getDistanceKm(driverLat, driverLng, originLat, originLng);
-      if (distToOrigin > driverRadius) {
+      
+      if (!isTarget && distToOrigin > driverRadius) {
         continue;
       }
 
@@ -206,7 +217,13 @@ export class DispatchService implements OnModuleInit {
 
     eligibleDrivers.sort((a, b) => a.teamPriority - b.teamPriority || a.distanceKm - b.distanceKm);
 
-    const selectedDriver = eligibleDrivers[0];
+    let selectedDriver = eligibleDrivers[0];
+    if (targetDriverId) {
+      const targetDriver = eligibleDrivers.find((d) => d.driverId === targetDriverId);
+      if (targetDriver) {
+        selectedDriver = targetDriver;
+      }
+    }
 
     if (!selectedDriver) {
       return {
@@ -601,4 +618,37 @@ export class DispatchService implements OnModuleInit {
   registerDriverUpdate(driverId: string) {
     this.driverLastUpdateMap.set(driverId, Date.now());
   }
+
+  async getActiveTaskForDriver(driverId: string) {
+    const task = await this.prisma.dispatchTask.findFirst({
+      where: {
+        driverId,
+        status: {
+          in: [
+            DispatchStatus.PROPOSED,
+            DispatchStatus.ACCEPTED,
+            DispatchStatus.EN_ROUTE,
+            DispatchStatus.ALERTA_CONEXION,
+          ],
+        },
+      },
+      include: {
+        need: {
+          include: {
+            items: {
+              include: {
+                item: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return { task };
+  }
 }
+
