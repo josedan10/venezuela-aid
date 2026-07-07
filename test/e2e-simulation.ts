@@ -13,6 +13,7 @@ import { DispatchStatus, NeedStatus, DriverStatus } from '@prisma/client';
 import { Role } from '../src/backend/users/role.enum';
 import { DispatchService } from '../src/backend/dispatch/dispatch.service';
 import { ResourcesService } from '../src/backend/resources/resources.service';
+import { FirebaseAuthGuard } from '../src/backend/users/firebase-auth.guard';
 
 // Disable background intervals for testing to avoid open handles and crashes
 DispatchService.prototype.onModuleInit = () => {};
@@ -34,6 +35,7 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
     zrem: jest.fn().mockResolvedValue(1),
     geoadd: jest.fn().mockResolvedValue(1),
     georadius: jest.fn().mockResolvedValue([]),
+    geopos: jest.fn().mockResolvedValue([[ -66.9, 10.5 ]]),
   };
 
   const mockRedisService = {
@@ -64,6 +66,7 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
       findUnique: jest.fn(),
     },
     dispatchTask: {
+      findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
@@ -95,6 +98,14 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
       .useValue(mockPrismaService)
       .overrideProvider(RedisService)
       .useValue(mockRedisService)
+      .overrideGuard(FirebaseAuthGuard)
+      .useValue({
+        canActivate: (context: any) => {
+          const req = context.switchToHttp().getRequest();
+          req.user = { id: req.body.driverId || req.body.targetDriverId || 'driver-e2e' };
+          return true;
+        },
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -143,15 +154,15 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
       longitude: -66.9,
       items: [],
     };
-    mockPrismaService.need.findUnique.mockResolvedValueOnce(mockNeed);
+    mockPrismaService.need.findUnique.mockResolvedValue(mockNeed);
     mockRedisClient.smembers.mockResolvedValueOnce([]); // no attempts yet
     mockRedisService.findNearbyDrivers.mockResolvedValueOnce([driverId]);
-    mockPrismaService.user.findUnique.mockResolvedValueOnce({
+    mockPrismaService.user.findUnique.mockResolvedValue({
       id: driverId,
       roles: 'DRIVER',
       driverDetails: { status: DriverStatus.VERIFIED },
     });
-    mockRedisService.getDriverAvailability.mockResolvedValueOnce('Disponible');
+    mockRedisService.getDriverAvailability.mockResolvedValue('Disponible');
 
     const mockTask = {
       id: taskId,
@@ -237,6 +248,12 @@ describe('E2E Simulation - Dispatch & Location Buffering', () => {
       id: needId,
       status: NeedStatus.ALLOCATED,
     });
+    mockPrismaService.needItem.findMany.mockResolvedValueOnce([
+      { id: 'need-item-1', needId, matchedResourceId: 'res-1', quantity: 2 },
+    ]);
+    mockPrismaService.$queryRaw.mockResolvedValueOnce([
+      { id: 'res-1', name: 'Agua', stockQuantity: 10 },
+    ]);
 
     const acceptResponse = await fetch(`http://localhost:${port}/dispatch/accept`, {
       method: 'POST',

@@ -226,9 +226,37 @@ export default function Home() {
         const data = await res.json();
         if (data.task) {
           if (data.task.status === 'PROPOSED') {
-            setActiveProposal(data.task);
             const timeoutDate = new Date(data.task.timeoutAt);
             const remaining = Math.max(0, Math.round((timeoutDate.getTime() - Date.now()) / 1000));
+            const originLat = data.task.pickupLatitude ?? data.task.need?.originLatitude ?? data.task.need?.latitude;
+            const originLng = data.task.pickupLongitude ?? data.task.need?.originLongitude ?? data.task.need?.longitude;
+            const pickupLabel = data.task.pickupLabel ?? data.task.need?.originLabel ?? `${data.task.need?.state || ''} - ${data.task.need?.sector || ''}`;
+            const matchedItems = (data.task.need?.items || [])
+              .filter((item) => item.matchedResourceId)
+              .map((item) => ({
+                requested: item.item?.name || '',
+                offer: item.matchedResource?.item?.name ?? item.matchedResource?.name ?? item.item?.name ?? '',
+                quantity: item.quantity,
+                pickupLabel: item.pickupLabel,
+                pickupDistanceKm: item.pickupDistanceKm,
+              }));
+
+            setActiveProposal({
+              taskId: data.task.id,
+              description: data.task.need?.description || '',
+              timeoutSeconds: remaining,
+              origin: {
+                latitude: originLat,
+                longitude: originLng,
+                label: pickupLabel,
+              },
+              destination: {
+                latitude: data.task.need?.latitude,
+                longitude: data.task.need?.longitude,
+                label: `${data.task.need?.state || ''} - ${data.task.need?.sector || ''}`,
+              },
+              matchedItems,
+            });
             setProposalCountdown(remaining);
           } else {
             setActiveTask(data.task);
@@ -253,7 +281,7 @@ export default function Home() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ needId, targetDriverId: currentUser.id }),
+        body: JSON.stringify({ needId }),
       });
       const proposeData = await proposeRes.json();
       if (!proposeRes.ok || !proposeData.success || !proposeData.task) {
@@ -271,7 +299,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: proposeData.task.id,
         }),
       });
@@ -952,7 +979,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: activeProposal.taskId,
         }),
       });
@@ -984,7 +1010,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: activeProposal.taskId,
         }),
       });
@@ -1156,7 +1181,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: activeTask.id,
           signatureUrl: deliverySignature || null,
           photoUrl: deliveryPhoto || null,

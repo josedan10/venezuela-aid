@@ -160,9 +160,26 @@ export class DispatchService implements OnModuleInit {
 
       const isTarget = driverId === targetDriverId;
 
-      if (!isTarget) {
-        const availability = await this.redisService.getDriverAvailability(driverId);
-        if (availability !== 'Disponible') {
+      const availability = await this.redisService.getDriverAvailability(driverId);
+      if (availability !== 'Disponible') {
+        continue;
+      }
+
+      if (isTarget) {
+        const targetActiveTask = await this.prisma.dispatchTask.findFirst({
+          where: {
+            driverId,
+            status: {
+              in: [
+                DispatchStatus.PROPOSED,
+                DispatchStatus.ACCEPTED,
+                DispatchStatus.EN_ROUTE,
+                DispatchStatus.ALERTA_CONEXION,
+              ],
+            },
+          },
+        });
+        if (targetActiveTask) {
           continue;
         }
       }
@@ -171,13 +188,11 @@ export class DispatchService implements OnModuleInit {
       const positions = await this.redisService.getClient().geopos('drivers:locations', driverId);
       const driverPos = positions?.[0];
       if (!driverPos || driverPos[0] == null || driverPos[1] == null) {
-        if (!isTarget) {
-          continue;
-        }
+        continue;
       }
 
-      const driverLng = driverPos?.[0] ? parseFloat(String(driverPos[0])) : originLng;
-      const driverLat = driverPos?.[1] ? parseFloat(String(driverPos[1])) : originLat;
+      const driverLng = parseFloat(String(driverPos[0]));
+      const driverLat = parseFloat(String(driverPos[1]));
       const distToOrigin = getDistanceKm(driverLat, driverLng, originLat, originLng);
       
       if (!isTarget && distToOrigin > driverRadius) {
@@ -638,6 +653,11 @@ export class DispatchService implements OnModuleInit {
             items: {
               include: {
                 item: true,
+                matchedResource: {
+                  include: {
+                    item: true,
+                  },
+                },
               },
             },
           },

@@ -13,27 +13,30 @@ export class DispatchController {
     return this.dispatchService.getActiveTaskForDriver(req.user.id);
   }
 
+  @UseGuards(FirebaseAuthGuard)
   @Post('propose')
-  async propose(@Body() body: { needId: string; targetDriverId?: string }) {
-    return this.dispatchService.createDispatchTask(body.needId, body.targetDriverId);
+  async propose(@Request() req: any, @Body() body: { needId: string }) {
+    return this.dispatchService.createDispatchTask(body.needId, req.user.id);
   }
 
-
+  @UseGuards(FirebaseAuthGuard)
   @Post('accept')
-  async accept(@Body() body: { driverId: string; taskId: string }) {
-    return this.dispatchService.acceptDispatchTask(body.driverId, body.taskId);
+  async accept(@Request() req: any, @Body() body: { taskId: string }) {
+    return this.dispatchService.acceptDispatchTask(req.user.id, body.taskId);
   }
 
+  @UseGuards(FirebaseAuthGuard)
   @Post('reject')
-  async reject(@Body() body: { driverId: string; taskId: string }) {
-    return this.dispatchService.rejectDispatchTask(body.driverId, body.taskId);
+  async reject(@Request() req: any, @Body() body: { taskId: string }) {
+    return this.dispatchService.rejectDispatchTask(req.user.id, body.taskId);
   }
 
+  @UseGuards(FirebaseAuthGuard)
   @Post('confirm')
-  async confirm(@Body() body: { driverId: string; taskId: string; signatureUrl?: string; photoUrl?: string }) {
+  async confirm(@Request() req: any, @Body() body: { taskId: string; signatureUrl?: string; photoUrl?: string }) {
     const dto = new ConfirmDeliveryDto();
     dto.signatureUrl = body.signatureUrl;
     dto.photoUrl = body.photoUrl;
-    return this.dispatchService.confirmDelivery(body.driverId, body.taskId, dto);
+    return this.dispatchService.confirmDelivery(req.user.id, body.taskId, dto);
   }
 }
