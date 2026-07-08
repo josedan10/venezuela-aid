@@ -212,6 +212,111 @@ export default function Home() {
     }
   };
 
+  const fetchActiveTask = async () => {
+    if (!authToken || !currentUser) return;
+    const isDriver = currentUser.roles.split(',').includes('DRIVER');
+    if (!isDriver) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/dispatch/active`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.task) {
+          if (data.task.status === 'PROPOSED') {
+            const timeoutDate = new Date(data.task.timeoutAt);
+            const remaining = Math.max(0, Math.round((timeoutDate.getTime() - Date.now()) / 1000));
+            const originLat = data.task.pickupLatitude ?? data.task.need?.originLatitude ?? data.task.need?.latitude;
+            const originLng = data.task.pickupLongitude ?? data.task.need?.originLongitude ?? data.task.need?.longitude;
+            const pickupLabel = data.task.pickupLabel ?? data.task.need?.originLabel ?? `${data.task.need?.state || ''} - ${data.task.need?.sector || ''}`;
+            const matchedItems = (data.task.need?.items || [])
+              .filter((item) => item.matchedResourceId)
+              .map((item) => ({
+                requested: item.item?.name || '',
+                offer: item.matchedResource?.item?.name ?? item.matchedResource?.name ?? item.item?.name ?? '',
+                quantity: item.quantity,
+                pickupLabel: item.pickupLabel,
+                pickupDistanceKm: item.pickupDistanceKm,
+              }));
+
+            setActiveProposal({
+              taskId: data.task.id,
+              description: data.task.need?.description || '',
+              timeoutSeconds: remaining,
+              origin: {
+                latitude: originLat,
+                longitude: originLng,
+                label: pickupLabel,
+              },
+              destination: {
+                latitude: data.task.need?.latitude,
+                longitude: data.task.need?.longitude,
+                label: `${data.task.need?.state || ''} - ${data.task.need?.sector || ''}`,
+              },
+              matchedItems,
+            });
+            setProposalCountdown(remaining);
+          } else {
+            setActiveTask(data.task);
+            startGPSTracking();
+          }
+        } else {
+          setActiveTask(null);
+          setActiveProposal(null);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching active task:', e);
+    }
+  };
+
+  const handleClaimNeed = async (needId) => {
+    if (!currentUser || !authToken) return;
+    try {
+      const proposeRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/dispatch/propose`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ needId }),
+      });
+      const proposeData = await proposeRes.json();
+      if (!proposeRes.ok || !proposeData.success || !proposeData.task) {
+        throw new Error(proposeData.message || 'No se pudo generar la propuesta para este despacho.');
+      }
+
+      if (proposeData.task.driverId !== currentUser.id) {
+        throw new Error('El despacho fue asignado a otro conductor.');
+      }
+
+      const acceptRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5001'}/dispatch/accept`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          taskId: proposeData.task.id,
+        }),
+      });
+      const acceptData = await acceptRes.json();
+      if (!acceptRes.ok) {
+        throw new Error(acceptData.message || 'Error al aceptar el despacho.');
+      }
+
+      setActiveTask(acceptData.task);
+      setActiveProposal(null);
+      startGPSTracking();
+      refreshNeeds();
+      alert('¡Despacho aceptado con éxito! Iniciando tránsito...');
+    } catch (err) {
+      alert(`Error al tomar despacho: ${err.message}`);
+    }
+  };
+
   const refreshNearbyNeeds = useCallback(async () => {
     if (!currentUser?.roles?.split(',').includes('DRIVER')) return;
     if (driverLat == null || driverLng == null) return;
@@ -348,6 +453,16 @@ export default function Home() {
       setDriverRadius(currentUser.alertRadiusKm);
     }
   }, [currentUser?.alertRadiusKm]);
+
+  // Load active dispatch task for driver on mount or login
+  useEffect(() => {
+    if (currentUser && authToken) {
+      const roles = currentUser.roles.split(',');
+      if (roles.includes('DRIVER')) {
+        fetchActiveTask();
+      }
+    }
+  }, [currentUser, authToken]);
 
   // Refresh nearby needs when driver location or radius changes
   useEffect(() => {
@@ -864,7 +979,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: activeProposal.taskId,
         }),
       });
@@ -896,7 +1010,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: activeProposal.taskId,
         }),
       });
@@ -1068,7 +1181,6 @@ export default function Home() {
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          driverId: currentUser.id,
           taskId: activeTask.id,
           signatureUrl: deliverySignature || null,
           photoUrl: deliveryPhoto || null,
@@ -1514,6 +1626,43 @@ export default function Home() {
       {/* FLOATING ACTION OVERLAY CONTROLLER */}
       <div className="floating-ui-container">
 
+        {/* GLOBAL DISPATCH PROPOSAL NOTIFICATION */}
+        {activeProposal && activeTab !== 'driver' && (
+          <div className="global-proposal-alert glass animate-slide-up">
+            <div className="global-proposal-header">
+              <span className="global-proposal-badge">🚨 PROPUESTA DE DESPACHO</span>
+              <span className="global-proposal-timer">{proposalCountdown}s</span>
+            </div>
+            <div className="global-proposal-body">
+              <p className="global-proposal-desc">{activeProposal.description}</p>
+              {activeProposal.origin && (
+                <div className="global-proposal-route">
+                  <p><strong>📍 Recoger en:</strong> {activeProposal.origin.label}</p>
+                  {activeProposal.destination && (
+                    <p><strong>🏁 Entregar en:</strong> {activeProposal.destination.label}</p>
+                  )}
+                </div>
+              )}
+              {activeProposal.matchedItems?.length > 0 && (
+                <div className="global-proposal-items">
+                  <strong>Insumos:</strong>
+                  <ul>
+                    {activeProposal.matchedItems.map((item, idx) => (
+                      <li key={idx}>
+                        {item.quantity}x {item.requested} → {item.offer} {item.pickupLabel && `(${item.pickupLabel})`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="global-proposal-actions">
+              <button onClick={handleAcceptProposal} className="global-proposal-btn accept">Aceptar Despacho</button>
+              <button onClick={handleRejectProposal} className="global-proposal-btn reject">Rechazar</button>
+            </div>
+          </div>
+        )}
+
         {/* Bottom controls — minimal map chrome */}
         <div className="bottom-controls-bar glass animate-fade-in">
           <button
@@ -1683,6 +1832,9 @@ export default function Home() {
                                         )}
                                       </span>
                                       <span className="res-row-category">{res.category}</span>
+                                      {res.latitude != null && res.longitude != null && (
+                                        <span className="res-row-coords">📍 {res.latitude.toFixed(4)}, {res.longitude.toFixed(4)}</span>
+                                      )}
                                       {res.collectionCenter && (
                                         <span className="res-row-location">@ {res.collectionCenter.name}</span>
                                       )}
@@ -1914,6 +2066,13 @@ export default function Home() {
                                             <ProgressLabel>Urgencia</ProgressLabel>
                                             {/* <ProgressValue /> */}
                                           </Progress>
+                                          <button
+                                            onClick={() => handleClaimNeed(need.id)}
+                                            className="claim-need-btn"
+                                            disabled={!!activeTask || !!activeProposal}
+                                          >
+                                            🚚 Aceptar Despacho
+                                          </button>
                                         </div>
                                       ))}
                                       {nearbyNeeds.length === 0 && (
@@ -2343,6 +2502,9 @@ export default function Home() {
                               <div className="resource-meta">
                                 <span className="res-row-name">{res.name}</span>
                                 <span className="res-row-category">{res.category}</span>
+                                {res.latitude != null && res.longitude != null && (
+                                  <span className="res-row-coords">📍 {res.latitude.toFixed(4)}, {res.longitude.toFixed(4)}</span>
+                                )}
                               </div>
                               <span className="res-row-qty">{res.stockQuantity} un.</span>
                             </div>
@@ -4433,6 +4595,184 @@ export default function Home() {
           opacity: 0.7;
           cursor: not-allowed;
         }
+
+        .alert-error {
+          background-color: rgba(239, 68, 68, 0.15);
+          color: #f87171;
+          border: 1px solid #ef4444;
+        }
+
+        .global-proposal-alert {
+          position: fixed;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 90%;
+          max-width: 480px;
+          background: rgba(15, 23, 42, 0.85);
+          backdrop-filter: blur(12px);
+          border: 2px solid #ef4444;
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.3), 0 10px 30px rgba(0, 0, 0, 0.5);
+          border-radius: 16px;
+          padding: 16px;
+          color: #f8fafc;
+          z-index: 1000;
+          pointer-events: auto; /* Allow clicks on buttons and overlay content */
+          animation: slideDownIn 0.3s cubic-bezier(0.16, 1, 0.3, 1), borderPulse 2s infinite;
+        }
+
+        @keyframes slideDownIn {
+          from { transform: translate(-50%, -20px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        @keyframes borderPulse {
+          0% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+          50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); }
+          100% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
+        }
+
+        .global-proposal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding-bottom: 10px;
+          margin-bottom: 12px;
+        }
+
+        .global-proposal-badge {
+          background-color: #ef4444;
+          color: white;
+          font-size: 11px;
+          font-weight: 800;
+          padding: 4px 8px;
+          border-radius: 20px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+
+        .global-proposal-timer {
+          background-color: rgba(255, 255, 255, 0.1);
+          color: #f59e0b;
+          font-size: 14px;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 8px;
+          border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .global-proposal-body {
+          font-size: 13px;
+          margin-bottom: 16px;
+        }
+
+        .global-proposal-desc {
+          font-size: 14px;
+          color: #cbd5e1;
+          margin-bottom: 10px;
+          line-height: 1.4;
+        }
+
+        .global-proposal-route {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+          padding: 10px;
+          margin-bottom: 10px;
+        }
+
+        .global-proposal-route p {
+          margin: 4px 0;
+        }
+
+        .global-proposal-items {
+          background: rgba(255, 255, 255, 0.03);
+          border-radius: 8px;
+          padding: 8px 10px;
+        }
+
+        .global-proposal-items ul {
+          margin: 4px 0 0 0;
+          padding-left: 20px;
+          color: #94a3b8;
+        }
+
+        .global-proposal-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .global-proposal-btn {
+          flex: 1;
+          padding: 10px;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .global-proposal-btn.accept {
+          background-color: #10b981;
+          color: white;
+          box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .global-proposal-btn.accept:hover {
+          background-color: #059669;
+        }
+
+        .global-proposal-btn.reject {
+          background-color: rgba(255, 255, 255, 0.1);
+          color: #cbd5e1;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .global-proposal-btn.reject:hover {
+          background-color: rgba(255, 255, 255, 0.15);
+          color: white;
+        }
+
+        .global-proposal-btn:active {
+          transform: scale(0.98);
+        }
+
+        .claim-need-btn {
+          width: 100%;
+          margin-top: 10px;
+          padding: 8px 12px;
+          background-color: #2563eb;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .claim-need-btn:hover:not(:disabled) {
+          background-color: #1d4ed8;
+        }
+
+        .claim-need-btn:disabled {
+          background-color: #cbd5e1;
+          color: #94a3b8;
+          cursor: not-allowed;
+        }
+
+        .claim-need-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+
+        .res-row-coords {
+          display: block;
+          font-size: 10px;
+          color: #64748b;
+          margin-top: 2px;
+        }
+
         .animate-fade-in {
           animation: fadeIn 0.25s ease-out;
         }
